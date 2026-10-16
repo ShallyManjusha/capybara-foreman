@@ -1,0 +1,86 @@
+# What the build stage is allowed to do, enforced on the resulting diff.
+#
+# These are not instructions to the model — the model is told about them, but
+# they are applied by reading `git diff` after the fact. A limit that depends
+# on the model agreeing to it is not a limit.
+#
+# Everything in `guardrails.HARD_DENY` is denied regardless of what this file
+# says: CI configuration, `.bob/`, `.foreman/`, key material. Those are the
+# controls over Foreman itself, and a config file that can widen them is a
+# config file that can disable the brakes.
+
+# Paths the build stage may change. Start narrow. Widening after a few weeks of
+# clean runs is easy; explaining an unexpected change to a deployment manifest
+# is not.
+allow_paths:
+  - "src/*"
+  - "app/*"
+  - "lib/*"
+  - "tests/*"
+  - "*.py"
+  - "*.ts"
+  - "*.js"
+  - "*.go"
+  - "*.java"
+  # ── IBM ACE / integration artefacts (CLIENT-SPECIFIC) ─────────────────────
+  # The build stage can only change files that match BOTH this list and the
+  # `fileRegex` of the foreman-build mode in .bob/custom_modes.yaml. For ACE
+  # work, uncomment what your repository uses here AND widen that fileRegex
+  # (see docs/CLIENT-REQUIREMENTS.md, section 9). Do it deliberately, after a
+  # few clean runs, not on day one.
+  #   - "*.msgflow"
+  #   - "*.subflow"
+  #   - "*.esql"
+  #   - "*.xsl"
+  #   - "*.xsd"
+  #   - "*.mapmsgflow"
+
+deny_paths:
+  - "migrations/*"          # schema changes need a DBA, not a gate comment
+  - "infra/*"
+  - "terraform/*"
+  - "helm/*"
+  - "charts/*"
+  - "Dockerfile"
+  - "docker-compose*.yml"
+  - "requirements*.txt"     # dependency changes are a supply-chain decision
+  - "package-lock.json"
+  - "poetry.lock"
+  - "go.sum"
+
+# Change budget. A change an order of magnitude larger than the approved plan
+# is not the change that was approved.
+max_files: 15
+max_lines: 600
+max_lines_per_file: 400
+
+# Deletions get a much tighter cap. Removing code is how a change that
+# suppresses a problem differs from one that fixes it.
+max_deleted_lines: 200
+
+# The most valuable rule here. The cheapest way to make a failing test pass is
+# to change the test, and a model told to make the tests pass will find that
+# route. Leave this false.
+allow_test_edits: false
+
+allow_new_files: true
+
+# Files the approved plan did not name are blocking violations — except new
+# test files, which the verify stage exists to add.
+require_plan_adherence: true
+
+forbid_binaries: true
+scan_secrets: true
+
+test_patterns:
+  - "test_*.py"
+  - "*_test.py"
+  - "tests/*"
+  - "test/*"
+  - "*.test.js"
+  - "*.test.ts"
+  - "*.spec.js"
+  - "*.spec.ts"
+  - "spec/*"
+  - "__tests__/*"
+  - "*Test.java"

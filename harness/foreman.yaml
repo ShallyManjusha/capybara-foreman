@@ -1,0 +1,118 @@
+# AI-SDLC Foreman — harness configuration.
+#
+# Credentials never appear here; they come from .env. This file is what you
+# commit and review.
+
+bob:
+  binary: bob
+
+  # "auto" detects the CLI generation from --help. Pin to "v1" or "v2" only to
+  # reproduce a historical run — a fleet mid-upgrade runs both.
+  dialect: auto
+
+  # Pin the model before you measure anything. Behaviour shifts materially
+  # across versions, and an unpinned model means the change budgets you tuned
+  # describe a system you are no longer running.
+  model: null
+
+  output_format: json
+  accept_license: true
+  max_turns: 60
+
+  # Subagents and MCP servers are both routes to capabilities a mode never
+  # declared, which is the thing the mode's own `groups` exist to bound.
+  # The mapping stages lift `mcp` for their own invocation only (mcpcfg.py).
+  disable_tool_groups: [mcp, subagent]
+
+  # 1.0.x only. In 2.x, tool restriction lives in the mode's `groups`.
+  read_tools: [read_file, read_many_files, glob, search_file_content]
+  write_tools: [read_file, read_many_files, glob, search_file_content, write_file, replace, run_shell_command]
+  approval_mode: default
+  write_approval_mode: yolo
+  sandbox: true
+
+budget:
+  # 2.x --max-cost is a currency amount. 1.0.x --max-coins is a coin count.
+  # They are not interchangeable; both tables exist so a dialect switch does
+  # not silently change a budget by three orders of magnitude.
+  max_cost_per_stage:
+    default: 2.0
+    triage: 1.5
+    decompose: 2.5
+    mapping: 2.0
+    mapping-apply: 1.5
+    codereview: 1.0
+    plan: 1.5
+    review: 0.8
+    build: 4.0
+    verify: 3.0
+  max_coins_per_stage:
+    default: 300
+    triage: 250
+    decompose: 350
+    mapping: 300
+    mapping-apply: 250
+    codereview: 150
+    plan: 250
+    review: 120
+    build: 600
+    verify: 450
+  timeout_sec:
+    default: 1800
+    triage: 1200
+    decompose: 1500
+    mapping: 1200
+    mapping-apply: 900
+    codereview: 600
+    plan: 900
+    review: 600
+    build: 2400
+    verify: 1800
+    test: 900
+
+modes:
+  triage: foreman-triage
+  decompose: foreman-decompose
+  mapping: foreman-mapping
+  mapping_apply: foreman-mapping-apply
+  codereview: foreman-codereview
+  plan: foreman-plan
+  review: foreman-critic        # set to null to skip the adversarial pass
+  build: foreman-build
+  verify: foreman-verify
+
+jira:
+  # Foreman's own state lives in labels and an issue property, so it runs on a
+  # stock board. This optional mapping *mirrors* state onto your workflow where
+  # a matching status exists, and is skipped silently where one does not.
+  # These names must exist on YOUR board. `foreman doctor` does not check them
+  # and a name that does not match is skipped in silence — by design, so that a
+  # workflow change cannot stop the pipeline. Check with:
+  #   curl -s -u you:token ".../rest/api/3/issue/KEY-1/transitions" | jq '.transitions[].to.name'
+  #
+  # Gates map to "In Review", working states to "In Progress". Rename these to
+  # match your workflow.
+  status_map:
+    intake: Backlog
+    analyzed: Selected for Development
+    decomposing: In Progress
+    mapping: In Progress
+    approved: In Progress
+    committed: In Progress
+    merging: In Progress
+    deploying: In Progress
+    deployed: In Progress
+    applying-mapping: In Progress
+    closing: In Progress
+    awaiting-approval: In Review
+    awaiting-epic-approval: In Review
+    awaiting-mapping-review: In Review
+    awaiting-signoff: In Review
+    done: Done
+
+run:
+  # A ticket advances at most one state per run. Keeps every run bounded, keeps
+  # the board legible, and lets an operator stop the pipeline between any two
+  # stages by stopping the cron.
+  max_tickets_per_run: 5
+  tickets_in_parallel: 1

@@ -1,0 +1,36 @@
+# Capybara Foreman — paths excluded from analysis.
+# Merged with the repository's own .bobignore; ours is appended, never
+# substituted, so a team's deliberate exclusions always survive.
+
+.git/
+.github/
+.foreman/
+
+# NOT .bob/ — Bob Shell reads its own modes and rules from there, and 2.x
+# refuses to open a file that matches an ignore pattern. Excluding it makes
+# every mode fail with an access-denied error that names the wrong problem.
+node_modules/
+vendor/
+dist/
+build/
+target/
+__pycache__/
+.venv/
+venv/
+.mypy_cache/
+.pytest_cache/
+.tox/
+coverage/
+*.min.js
+*.min.css
+*.lock
+*.log
+*.pyc
+*.so
+*.dylib
+*.jar
+*.class
+*.png
+*.jpg
+*.pdf
+*.zip

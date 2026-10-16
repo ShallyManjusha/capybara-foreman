@@ -1,0 +1,1723 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI-SDLC Foreman — Architecture Reference</title>
+<meta name="description" content="Architecture, state machine, gate design and trust boundaries for AI-SDLC Foreman v0.1.0 — Jira-driven delivery automation over Bob Shell.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@300;400;600;700&display=swap">
+<style>
+/* ==========================================================================
+   IBM Carbon Design System v11 — token values from @carbon/themes
+   White is the primary theme; G100 under prefers-color-scheme: dark.
+   Product accent is the Foreman gold (Carbon yellow), darkened in the light
+   theme so it clears 4.5:1 against white for text use.
+   ========================================================================== */
+:root{
+  --f-sans:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  --f-cond:'IBM Plex Sans Condensed','Arial Narrow','Roboto Condensed','IBM Plex Sans',system-ui,sans-serif;
+  --f-mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+
+  /* Carbon White — backgrounds and layers */
+  --cds-background:#ffffff;
+  --cds-layer-01:#f4f4f4;
+  --cds-layer-02:#ffffff;
+  --cds-layer-accent-01:#e0e0e0;
+  --cds-field-01:#f4f4f4;
+
+  /* Carbon White — text */
+  --cds-text-primary:#161616;
+  --cds-text-secondary:#525252;
+  --cds-text-helper:#6f6f6f;
+  --cds-text-on-color:#ffffff;
+  --cds-text-inverse:#ffffff;
+
+  /* Carbon White — borders */
+  --cds-border-subtle-01:#e0e0e0;
+  --cds-border-subtle-02:#c6c6c6;
+  --cds-border-strong-01:#8d8d8d;
+
+  /* Carbon White — interactive and support */
+  --cds-link-primary:#0f62fe;
+  --cds-focus:#0f62fe;
+  --cds-support-error:#da1e28;
+  --cds-support-success:#24a148;
+  --cds-support-warning:#f1c21b;
+  --cds-support-info:#0043ce;
+
+  /* Product tokens — Foreman gold */
+  --fm:#8e6a00;
+  --fm-tint:#fcf4d6;
+  --fm-ink:#684e00;
+  --fm-line:#d2a106;
+
+  /* Untrusted / hostile region — Carbon orange */
+  --hostile:#8a3800;
+  --hostile-tint:#fff2e8;
+  --hostile-line:#ba4e00;
+
+  /* Verified / enforced-by-harness region — Carbon green */
+  --ok:#0e6027;
+  --ok-tint:#defbe6;
+  --ok-ink:#044317;
+
+  --ground:var(--cds-background);
+  --layer:var(--cds-layer-02);
+  --layer-2:var(--cds-layer-01);
+  --chip:#e8e8e8;
+  --text:var(--cds-text-primary);
+  --text-2:var(--cds-text-secondary);
+  --text-3:var(--cds-text-helper);
+  --rule:var(--cds-border-subtle-01);
+  --rule-strong:var(--cds-border-strong-01);
+  --link:var(--cds-link-primary);
+  --focus:var(--cds-focus);
+
+  --mast:#161616;
+  --mast-text:#f4f4f4;
+  --mast-2:#8d8d8d;
+}
+
+/* Carbon G100 */
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --cds-background:#161616;
+    --cds-layer-01:#262626;
+    --cds-layer-02:#262626;
+    --cds-layer-accent-01:#393939;
+    --cds-field-01:#262626;
+    --cds-text-primary:#f4f4f4;
+    --cds-text-secondary:#c6c6c6;
+    --cds-text-helper:#8d8d8d;
+    --cds-text-inverse:#161616;
+    --cds-border-subtle-01:#393939;
+    --cds-border-subtle-02:#525252;
+    --cds-border-strong-01:#6f6f6f;
+    --cds-link-primary:#78a9ff;
+    --cds-focus:#ffffff;
+    --cds-support-error:#fa4d56;
+    --cds-support-success:#42be65;
+    --cds-support-warning:#f1c21b;
+    --cds-support-info:#4589ff;
+
+    --fm:#f1c21b;
+    --fm-tint:#2e2000;
+    --fm-ink:#fddc69;
+    --fm-line:#b28600;
+
+    --hostile:#ff832b;
+    --hostile-tint:#2b1608;
+    --hostile-line:#8a3800;
+
+    --ok:#42be65;
+    --ok-tint:#0d2818;
+    --ok-ink:#6fdc8c;
+
+    --chip:#353535;
+    --mast:#0b0b0b;
+    --mast-text:#f4f4f4;
+    --mast-2:#8d8d8d;
+  }
+}
+:root[data-theme="dark"]{
+  --cds-background:#161616; --cds-layer-01:#262626; --cds-layer-02:#262626;
+  --cds-layer-accent-01:#393939; --cds-field-01:#262626;
+  --cds-text-primary:#f4f4f4; --cds-text-secondary:#c6c6c6; --cds-text-helper:#8d8d8d;
+  --cds-text-inverse:#161616;
+  --cds-border-subtle-01:#393939; --cds-border-subtle-02:#525252; --cds-border-strong-01:#6f6f6f;
+  --cds-link-primary:#78a9ff; --cds-focus:#ffffff;
+  --cds-support-error:#fa4d56; --cds-support-success:#42be65;
+  --cds-support-warning:#f1c21b; --cds-support-info:#4589ff;
+  --fm:#f1c21b; --fm-tint:#2e2000; --fm-ink:#fddc69; --fm-line:#b28600;
+  --hostile:#ff832b; --hostile-tint:#2b1608; --hostile-line:#8a3800;
+  --ok:#42be65; --ok-tint:#0d2818; --ok-ink:#6fdc8c;
+  --chip:#353535; --mast:#0b0b0b; --mast-text:#f4f4f4; --mast-2:#8d8d8d;
+}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:64px}
+@media (prefers-reduced-motion: reduce){html{scroll-behavior:auto}}
+body{margin:0;background:var(--ground);color:var(--text);font-family:var(--f-sans);font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased}
+a{color:var(--link);text-underline-offset:2px}
+a:focus-visible,button:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+code,.mono{font-family:var(--f-mono);font-size:.86em}
+code{background:var(--chip);padding:.08em .35em;border-radius:2px;overflow-wrap:anywhere}
+
+/* masthead — Carbon UI shell header */
+.mast{position:sticky;top:0;z-index:5;background:var(--mast);color:var(--mast-text);display:flex;align-items:center;gap:16px;height:48px;padding:0 20px;font-size:14px;border-bottom:1px solid #393939}
+.mast b{font-weight:600}
+.mast .sep{width:1px;height:20px;background:#393939}
+.mast .sub{color:var(--mast-2)}
+.mast .rev{margin-left:auto;font-family:var(--f-mono);font-size:12px;color:var(--mast-2)}
+.mast button{background:none;border:0;color:var(--mast-2);font:inherit;font-size:12px;cursor:pointer;padding:6px 8px}
+.mast button:hover{color:var(--mast-text);background:#262626}
+
+/* page grid */
+.page{display:grid;grid-template-columns:240px minmax(0,1fr);gap:48px;max-width:1360px;margin:0 auto;padding:0 32px 96px}
+.rail{position:sticky;top:48px;align-self:start;max-height:calc(100vh - 48px);overflow:auto;padding:36px 0 24px}
+.rail h2{font-family:var(--f-cond);font-weight:600;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3);margin:0 0 10px}
+.rail ol{list-style:none;margin:0;padding:0}
+.rail li a{display:grid;grid-template-columns:26px 1fr;padding:5px 8px 5px 10px;border-left:2px solid var(--rule);color:var(--text-2);text-decoration:none;font-size:13px;line-height:1.35}
+.rail li a span{font-family:var(--f-mono);font-size:11px;color:var(--text-3);padding-top:1px}
+.rail li a:hover{color:var(--text);background:var(--layer-2)}
+.rail li a.on{border-left-color:var(--fm);color:var(--text);font-weight:600}
+.rail .figs{margin-top:22px}
+.rail .figs a{display:block;font-family:var(--f-mono);font-size:11.5px;color:var(--text-3);text-decoration:none;padding:2px 0 2px 12px}
+.rail .figs a:hover{color:var(--text)}
+main{min-width:0;padding-top:36px}
+
+/* header */
+.head{display:grid;grid-template-columns:auto 1fr;gap:24px;align-items:center;padding-bottom:28px;border-bottom:1px solid var(--rule)}
+.head img{width:88px;height:88px;display:block}
+.eyebrow{font-family:var(--f-cond);font-weight:600;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--fm)}
+h1{font-weight:300;font-size:44px;line-height:1.1;margin:4px 0 8px;letter-spacing:-.01em;text-wrap:balance}
+.thesis{font-size:18px;font-weight:300;color:var(--text-2);margin:0;max-width:62ch}
+.thesis b{font-weight:600;color:var(--text)}
+
+.facts{display:flex;flex-wrap:wrap;gap:0;margin:22px 0 0;border:1px solid var(--rule);background:var(--layer)}
+.facts div{padding:12px 18px;border-right:1px solid var(--rule);flex:1 1 140px}
+.facts div:last-child{border-right:0}
+.facts dt{font-family:var(--f-cond);font-weight:500;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3)}
+.facts dd{margin:2px 0 0;font-size:20px;font-weight:300;font-variant-numeric:tabular-nums}
+.facts dd small{display:block;font-size:12px;color:var(--text-3);font-weight:400;margin-top:1px}
+.facts-cap{font-size:12px;color:var(--text-3);margin:8px 0 0}
+
+.legend{display:flex;flex-wrap:wrap;gap:10px 22px;margin:18px 0 0;font-size:12.5px;color:var(--text-2)}
+.legend span{display:inline-flex;align-items:center;gap:8px}
+.sw{width:26px;height:14px;display:inline-block;border:1px solid}
+.sw.h{border-color:var(--hostile);background:repeating-linear-gradient(45deg,var(--hostile-tint) 0 4px,var(--hostile-line) 4px 5.5px)}
+.sw.g{border-color:var(--fm);background:var(--fm-tint)}
+.sw.k{border-color:var(--ok);background:var(--ok-tint)}
+.sw.n{border-color:var(--rule-strong);background:var(--layer)}
+
+/* sections */
+section{padding-top:48px}
+.sec-h{display:flex;align-items:baseline;gap:14px;border-bottom:1px solid var(--rule);padding-bottom:10px;margin-bottom:18px}
+.sec-h .n{font-family:var(--f-mono);font-size:13px;color:var(--fm);min-width:24px}
+h2.t{font-weight:400;font-size:28px;line-height:1.2;margin:0;text-wrap:balance}
+h3{font-size:17px;font-weight:600;margin:30px 0 8px;text-wrap:balance}
+.prose{max-width:70ch}
+.prose p{margin:0 0 12px}
+.prose ul,.prose ol{margin:0 0 12px;padding-left:20px}
+.prose li{margin:3px 0}
+.pull{border-left:3px solid var(--fm);background:var(--layer);padding:14px 18px;margin:18px 0;max-width:70ch}
+.pull p{margin:0}
+.pull b{font-weight:600}
+.pull.warn{border-left-color:var(--hostile)}
+.pull.good{border-left-color:var(--ok)}
+
+/* figures — drawing sheets with a title block */
+figure.sheet{margin:22px 0 26px;background:var(--layer);border:1px solid var(--rule)}
+figure.sheet .draw{overflow-x:auto;padding:14px 14px 6px}
+figure.sheet svg{display:block;width:100%;height:auto;min-width:760px}
+figure.sheet.narrow svg{min-width:620px}
+figure.sheet figcaption{display:grid;grid-template-columns:auto 1fr auto;gap:0;border-top:1px solid var(--rule);font-size:13px}
+figure.sheet figcaption > *{padding:9px 14px}
+figure.sheet .fno{font-family:var(--f-cond);font-weight:600;font-size:12px;letter-spacing:.08em;text-transform:uppercase;border-right:1px solid var(--rule);color:var(--fm);white-space:nowrap}
+figure.sheet .claim{color:var(--text-2)}
+figure.sheet .src{font-family:var(--f-mono);font-size:11px;color:var(--text-3);border-left:1px solid var(--rule);white-space:nowrap}
+@media (max-width:760px){figure.sheet figcaption{grid-template-columns:1fr}figure.sheet .fno,figure.sheet .src{border:0}}
+
+/* svg drawing vocabulary */
+.d text{font-family:var(--f-sans);font-size:12px;fill:var(--text)}
+.d .ti{font-weight:600;font-size:12.5px}
+.d .tim{font-family:var(--f-mono);font-weight:600;font-size:11.5px;fill:var(--text)}
+.d .su{fill:var(--text-2);font-size:11px}
+.d .mo{font-family:var(--f-mono);font-size:10.5px;fill:var(--text-2)}
+.d .mo.k{fill:var(--text)}
+.d .lb{font-family:var(--f-cond);font-weight:600;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;fill:var(--text-3)}
+.d .lb.g{fill:var(--fm)} .d .lb.h{fill:var(--hostile)} .d .lb.k{fill:var(--ok)}
+.d .al{font-family:var(--f-mono);font-size:10px;fill:var(--text-2)}
+.d .al.g{fill:var(--fm)} .d .al.h{fill:var(--hostile)} .d .al.k{fill:var(--ok)}
+.d .big{font-size:22px;font-weight:300;fill:var(--text)}
+.d .box{fill:var(--layer);stroke:var(--rule-strong);stroke-width:1}
+.d .box2{fill:var(--layer-2);stroke:var(--rule);stroke-width:1}
+.d .gate{fill:var(--fm-tint);stroke:var(--fm);stroke-width:1.6}
+.d .tr{fill:var(--ok-tint);stroke:var(--ok);stroke-width:1.2}
+.d .reg-t{fill:none;stroke:var(--ok);stroke-width:1.2}
+.d .reg-h{stroke:var(--hostile);stroke-width:1.2}
+.d .reg-g{fill:none;stroke:var(--fm);stroke-width:1.4}
+.d .ink{fill:var(--text);stroke:none}
+.d .ink-t{fill:var(--ground);font-weight:600;font-size:10.5px;font-family:var(--f-mono)}
+.d .dash{stroke-dasharray:4 4}
+.d .ln{stroke:var(--text-2);stroke-width:1.2;fill:none}
+.d .ln.g{stroke:var(--fm);stroke-width:1.8}
+.d .ln.h{stroke:var(--hostile);stroke-width:1.4}
+.d .ln.k{stroke:var(--ok);stroke-width:1.5}
+.d .ln.m{stroke:var(--rule-strong)}
+.d .ah{fill:var(--text-2)} .d .ah.g{fill:var(--fm)} .d .ah.h{fill:var(--hostile)} .d .ah.k{fill:var(--ok)}
+.d .hz-bg{fill:var(--hostile-tint)} .d .hz-ln{stroke:var(--hostile-line);stroke-width:1.5}
+.d .chip{fill:var(--fm-tint);stroke:var(--fm);stroke-width:1}
+.d .chip-t{font-family:var(--f-mono);font-size:10.5px;fill:var(--fm-ink)}
+.d .chipk{fill:var(--ok-tint);stroke:var(--ok);stroke-width:1}
+.d .chipk-t{font-family:var(--f-mono);font-size:10.5px;fill:var(--ok-ink)}
+.d .strike{font-family:var(--f-mono);font-size:10px;fill:var(--hostile)}
+.d .grid{stroke:var(--rule);stroke-width:1}
+.d .axis{stroke:var(--rule-strong);stroke-width:1}
+.d .tick{font-family:var(--f-mono);font-size:10px;fill:var(--text-3)}
+.d .bar{fill:var(--layer-2);stroke:var(--rule-strong);stroke-width:1}
+.d .bar-g{fill:var(--fm)}
+.d .bar-k{fill:var(--ok)}
+.d .bar-i{fill:var(--text)}
+.d .bar-t{font-family:var(--f-mono);font-size:10px;fill:var(--text)}
+.d .num{fill:var(--text);stroke:none}
+.d .num-t{fill:var(--ground);font-family:var(--f-mono);font-size:10px;font-weight:600}
+
+/* tables — Carbon data table */
+.tw{overflow-x:auto;margin:14px 0 22px;border:1px solid var(--rule);background:var(--layer)}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th{font-family:var(--f-cond);font-weight:600;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);text-align:left;padding:10px 14px;border-bottom:1px solid var(--rule);background:var(--layer-2);white-space:nowrap}
+td{padding:9px 14px;border-bottom:1px solid var(--rule);vertical-align:top}
+tr:last-child td{border-bottom:0}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+td code{font-size:12px}
+
+.pill{display:inline-block;font-family:var(--f-mono);font-size:11px;padding:1px 7px;border-radius:10px;white-space:nowrap}
+.pill.gate{background:var(--fm-tint);color:var(--fm-ink);border:1px solid var(--fm-line)}
+.pill.ok{background:var(--ok-tint);color:var(--ok-ink)}
+.pill.bad{background:var(--hostile-tint);color:var(--hostile)}
+.pill.n{background:var(--chip);color:var(--text-2)}
+
+pre.tree{font-family:var(--f-mono);font-size:12.5px;line-height:1.65;background:var(--layer);border:1px solid var(--rule);padding:16px 18px;margin:14px 0 22px;overflow-x:auto;color:var(--text)}
+pre.tree .c{color:var(--text-3)}
+pre.tree .g{color:var(--fm)}
+pre.tree .k{color:var(--ok)}
+pre.tree .h{color:var(--hostile)}
+
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px;margin:14px 0 22px}
+.cols > div{background:var(--layer);border:1px solid var(--rule);padding:14px 18px}
+.cols h4{margin:0 0 6px;font-size:14px;font-weight:600}
+.cols p,.cols ul{margin:0;font-size:13.5px;color:var(--text-2)}
+.cols ul{padding-left:18px}
+
+ol.steps{list-style:none;margin:14px 0 22px;padding:0;border:1px solid var(--rule);background:var(--layer);counter-reset:st}
+ol.steps li{display:grid;grid-template-columns:38px 1fr;gap:0;border-bottom:1px solid var(--rule);counter-increment:st}
+ol.steps li:last-child{border-bottom:0}
+ol.steps li::before{content:counter(st);font-family:var(--f-mono);font-size:11px;color:var(--fm);padding:12px 0 12px 14px}
+ol.steps li > div{padding:12px 16px 12px 0}
+ol.steps b{font-weight:600}
+ol.steps p{margin:3px 0 0;font-size:13.5px;color:var(--text-2)}
+
+footer{max-width:1360px;margin:0 auto;padding:40px 32px 64px;border-top:1px solid var(--rule);color:var(--text-3);font-size:13px}
+footer b{color:var(--text-2)}
+
+@media (max-width:980px){
+  .page{grid-template-columns:1fr;gap:0;padding:0 20px 64px}
+  .rail{position:static;max-height:none;padding:24px 0 0;border-bottom:1px solid var(--rule)}
+  .rail ol{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+  h1{font-size:34px}
+  .head{grid-template-columns:1fr}
+  .head img{width:64px;height:64px}
+}
+@media print{
+  .mast,.rail{display:none}
+  .page{display:block;padding:0}
+  figure.sheet,.tw,.cols > div{break-inside:avoid}
+  a{color:inherit;text-decoration:none}
+}
+</style>
+</head>
+<body>
+<header class="mast">
+  <b>AI-SDLC Foreman</b>
+  <span class="sep"></span>
+  <span class="sub">Architecture Reference</span>
+  <span class="sep"></span>
+  <span class="sub">IBM Client Engineering EMEA</span>
+  <button type="button" id="theme" aria-label="Toggle colour theme">Theme</button>
+  <span class="rev">v0.1.0 · rev A</span>
+</header>
+
+<div class="page">
+<nav class="rail" aria-label="Contents">
+  <h2>Contents</h2>
+  <ol>
+    <li><a href="#s1"><span>01</span>Scope and stance</a></li>
+    <li><a href="#s2"><span>02</span>System context</a></li>
+    <li><a href="#s3"><span>03</span>Tiers and trust boundaries</a></li>
+    <li><a href="#s4"><span>04</span>The state machine</a></li>
+    <li><a href="#s5"><span>05</span>The human gates</a></li>
+    <li><a href="#s6"><span>06</span>Agent harness</a></li>
+    <li><a href="#s7"><span>07</span>Stage pipeline</a></li>
+    <li><a href="#s8"><span>08</span>Contracts and evidence</a></li>
+    <li><a href="#s9"><span>09</span>Guardrails</a></li>
+    <li><a href="#s10"><span>10</span>Deploy and verify</a></li>
+    <li><a href="#s11"><span>11</span>Where state lives</a></li>
+    <li><a href="#s12"><span>12</span>A ticket, end to end</a></li>
+    <li><a href="#s13"><span>13</span>Portability</a></li>
+    <li><a href="#s14"><span>14</span>Security controls</a></li>
+    <li><a href="#s15"><span>15</span>Failure modes</a></li>
+    <li><a href="#s16"><span>16</span>Configuration surface</a></li>
+    <li><a href="#s17"><span>17</span>Decisions and rollout</a></li>
+  </ol>
+  <div class="figs">
+    <h2>Figures</h2>
+    <a href="#f1">F1 · System context</a>
+    <a href="#f2">F2 · Trust boundaries</a>
+    <a href="#f3">F3 · State machine</a>
+    <a href="#f4">F4 · Gate evaluation</a>
+    <a href="#f5">F5 · Adapter dialects</a>
+    <a href="#f6">F6 · Stage pipeline</a>
+    <a href="#f7">F7 · Evidence check</a>
+    <a href="#f8">F8 · Diff inspection</a>
+    <a href="#f9">F9 · State storage</a>
+    <a href="#f10">F10 · Run timeline</a>
+    <a href="#f11">F11 · Port surface</a>
+  </div>
+</nav>
+
+<main>
+<div class="head">
+  <img src="data:image/png;base64,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" alt="AI-SDLC Foreman" width="88" height="88">
+  <div>
+    <div class="eyebrow">Architecture Reference · v0.1.0</div>
+    <h1>AI-SDLC Foreman</h1>
+    <p class="thesis">A Jira ticket goes in. A reviewed, tested, deployed change comes out.
+    <b>Two humans decide; nothing else does.</b></p>
+  </div>
+</div>
+
+<dl class="facts">
+  <div><dt>Stages</dt><dd>5<small>triage · plan · build · verify · close</small></dd></div>
+  <div><dt>Human gates</dt><dd>2<small>plan · sign-off</small></dd></div>
+  <div><dt>States</dt><dd>15<small>closed transition set</small></dd></div>
+  <div><dt>Harness</dt><dd>6.3k<small>lines, stdlib only</small></dd></div>
+  <div><dt>Tests</dt><dd>76<small>gate · guardrails · contract · DC</small></dd></div>
+  <div><dt>Observed run</dt><dd>$1.63<small>ticket to closed</small></dd></div>
+</dl>
+<p class="facts-cap">Measured on the reference board and sandbox service, Bob Shell 2.0.4, 20 September 2026. Cost is the sum of <code>session_costs</code> reported by Bob across all six stage invocations.</p>
+
+<div class="legend">
+  <span><i class="sw h"></i> Untrusted input — ticket text, repository contents</span>
+  <span><i class="sw g"></i> Human decision point</span>
+  <span><i class="sw k"></i> Enforced by the harness, not the model</span>
+  <span><i class="sw n"></i> Ordinary component</span>
+</div>
+<section id="s1">
+  <div class="sec-h"><span class="n">01</span><h2 class="t">Scope and stance</h2></div>
+  <div class="prose">
+    <p>AI-SDLC Foreman watches a Jira board. When a ticket appears it reads the ticket and the code, establishes what is actually wrong, and posts an analysis and a change plan back on the ticket — then stops and waits for a person. On approval it writes the code, opens a pull request, triggers the non-prod deployment, writes unit tests for the acceptance criteria that were agreed, runs them, and posts the evidence — then stops again. On sign-off it closes the ticket and raises the production-deployment ticket for a human to schedule.</p>
+    <p>Nobody prompts it. It runs from cron.</p>
+    <h3>What is automated, and what is not</h3>
+    <p>Coding agents are good at the middle of this and bad at the ends. The middle — read the code, find the defect, write the fix, write the tests — is where they earn their keep. The ends are where they go wrong: deciding <em>which</em> work to do, deciding whether a change is good enough to ship, and deciding when something needs a person.</p>
+    <p>Most agent demonstrations automate the middle and hand-wave the ends. That is why they demonstrate well and deploy badly. Foreman is the ends: a state machine with two human gates wrapped around Bob Shell. Every interesting decision belongs to a named person and is recorded on the ticket. What is automated is everything between those decisions, which turns out to be most of the clock time.</p>
+    <div class="pull"><p><b>The agent proposes. The harness disposes. A human decides.</b> Everything in this document is an elaboration of that sentence.</p></div>
+    <h3>Deliberately out of scope</h3>
+    <ul>
+      <li><b>Production deployment.</b> Foreman sets a fixVersion and raises a deployment ticket. Everything upstream is reversible in minutes; a production release is not, and a comment on a Jira ticket is not informed consent for one on a team's behalf.</li>
+      <li><b>Merging, by default.</b> <code>FOREMAN_AUTO_MERGE</code> exists and defaults to false. Most teams want the merge button to stay human even when everything else does not.</li>
+      <li><b>Segregation of duty.</b> Foreman records who approved and verifies their identity. Whether one person may both raise and approve is the client's change-management policy, expressed in <code>FOREMAN_APPROVERS</code>.</li>
+      <li><b>Deciding what to work on.</b> The intake JQL is the outer boundary, and a human writes it.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="s2">
+  <div class="sec-h"><span class="n">02</span><h2 class="t">System context</h2></div>
+  <div class="prose">
+    <p>Four systems, and Foreman is the smallest of them. It holds no queue of its own, no workflow engine and no scheduler: cron starts it, the board tells it what to do, and it advances one ticket by one state before exiting.</p>
+  </div>
+
+  <figure class="sheet" id="f1">
+    <div class="draw">
+    <svg class="d" viewBox="0 0 1000 430" role="img" aria-label="System context diagram. Cron starts the Foreman host. The Jira board supplies tickets through an intake JQL query and receives comments, labels and issue properties. Reviewers comment approval commands on the board. The analysis tier is an untrusted-input region holding only the Bob API key. The publisher pushes branches and opens pull requests on the git host, and dispatches the non-prod deployment.">
+      <defs>
+        <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0 0L10 5L0 10z"/></marker>
+        <marker id="ag" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah g" d="M0 0L10 5L0 10z"/></marker>
+        <marker id="ak" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah k" d="M0 0L10 5L0 10z"/></marker>
+        <pattern id="hz" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect class="hz-bg" width="7" height="7"/><line class="hz-ln" x1="0" y1="0" x2="0" y2="7"/></pattern>
+      </defs>
+
+      <rect x="330" y="74" width="350" height="330" fill="none" class="ln m dash"/>
+      <text class="lb" x="344" y="94">Foreman host · one ticket, one state, then exit</text>
+
+      <rect class="box" x="350" y="106" width="310" height="46"/>
+      <text class="ti" x="362" y="126">Control tier</text>
+      <text class="su" x="362" y="142">start.sh · lock · state machine · two interlocks</text>
+
+      <rect x="350" y="164" width="310" height="62" fill="url(#hz)" class="reg-h"/>
+      <text class="ti" x="362" y="184">Analysis + build tiers — unprivileged</text>
+      <text class="su" x="362" y="200">disposable worktree · bob run --mode foreman-*</text>
+      <text class="al h" x="362" y="216">holds BOB_API_KEY only · no Jira or git token</text>
+
+      <rect class="tr" x="350" y="238" width="310" height="58"/>
+      <text class="ti" x="362" y="258">Validation + publisher</text>
+      <text class="mo k" x="362" y="275">contract.py · guardrails.py · gate.py</text>
+      <text class="al k" x="362" y="290">the only tier holding write credentials</text>
+
+      <rect class="box" x="350" y="308" width="310" height="46"/>
+      <text class="ti" x="362" y="328">Records</text>
+      <text class="mo" x="362" y="344">foreman.db · var/logs/&lt;TICKET&gt; · var/out</text>
+
+      <rect class="box" x="40" y="106" width="200" height="46"/>
+      <text class="ti" x="52" y="126">Scheduler</text>
+      <text class="su" x="52" y="142">cron · every 10 min</text>
+      <path class="ln" d="M240 129H350" marker-end="url(#a)"/>
+      <text class="al" x="295" y="122" text-anchor="middle">start.sh</text>
+
+      <rect class="box" x="40" y="180" width="200" height="86"/>
+      <text class="ti" x="52" y="200">Jira board</text>
+      <text class="su" x="52" y="217">tickets · comments</text>
+      <text class="mo" x="52" y="233">labels: foreman:&lt;state&gt;</text>
+      <text class="mo" x="52" y="248">property: foreman.state</text>
+      <text class="al k" x="52" y="262">source of truth</text>
+      <path class="ln" d="M240 205H350" marker-end="url(#a)"/>
+      <text class="al" x="295" y="198" text-anchor="middle">intake JQL</text>
+      <path class="ln k" d="M350 252H240" marker-end="url(#ak)"/>
+      <text class="al k" x="295" y="268" text-anchor="middle">comment · label</text>
+
+      <rect class="gate" x="40" y="296" width="200" height="58"/>
+      <text class="ti" x="52" y="316">Reviewers</text>
+      <text class="su" x="52" y="332">/foreman approve</text>
+      <text class="al g" x="52" y="347">on the allowlist, by account id</text>
+      <path class="ln g" d="M140 296V266" marker-end="url(#ag)"/>
+      <text class="al g" x="150" y="284">comment on the ticket</text>
+
+      <rect class="box" x="760" y="106" width="200" height="74"/>
+      <text class="ti" x="772" y="126">Git host</text>
+      <text class="su" x="772" y="143">GitHub · GHES · local</text>
+      <text class="mo" x="772" y="159">branch foreman/&lt;KEY&gt;</text>
+      <text class="mo" x="772" y="174">pull request</text>
+      <path class="ln" d="M760 132H660" marker-end="url(#a)"/>
+      <text class="al" x="710" y="125" text-anchor="middle">clone</text>
+      <text class="al" x="710" y="168" text-anchor="middle">read token</text>
+      <path class="ln k" d="M660 262H760V186" marker-end="url(#ak)"/>
+      <text class="al k" x="712" y="256" text-anchor="middle">push · PR</text>
+      <text class="al k" x="712" y="240" text-anchor="middle">write token</text>
+
+      <rect class="box" x="760" y="212" width="200" height="60"/>
+      <text class="ti" x="772" y="232">CI / CD</text>
+      <text class="su" x="772" y="249">Actions · webhook · script</text>
+      <text class="al" x="772" y="265">deploys; Foreman only asks</text>
+      <path class="ln k" d="M660 282H760V278" marker-end="url(#ak)"/>
+      <text class="al k" x="712" y="298" text-anchor="middle">dispatch nonprod</text>
+
+      <rect class="box2" x="760" y="304" width="200" height="50"/>
+      <text class="ti" x="772" y="324">Bob API</text>
+      <text class="al h" x="772" y="341">the analysis tier's only egress</text>
+      <path class="ln h dash" d="M660 196H716V304" marker-end="url(#a)"/>
+
+      <text class="lb h" x="40" y="392">Untrusted: ticket text · repository contents</text>
+      <text class="lb k" x="350" y="392">Enforced in Python, not asked of the model</text>
+      <text class="lb g" x="760" y="392">Human decision</text>
+    </svg>
+    </div>
+    <figcaption>
+      <div class="fno">Figure 1</div>
+      <div class="claim">The board is the source of truth and the reviewer's only interface. Foreman holds no queue: it reads state from Jira, advances one ticket by one state, and exits.</div>
+      <div class="src">cli.py · stages.py</div>
+    </figcaption>
+  </figure>
+
+  <div class="prose">
+    <h3>Why one state per run</h3>
+    <p><code>advance()</code> performs exactly one transition per ticket per run, even when the next stage could start immediately. Every run is bounded in time and cost, so cron scheduling is predictable. The board stays legible while work moves — someone watching sees each step. An operator can stop the pipeline between any two stages by stopping the cron, with no in-flight state to reconcile. And a bug in one stage cannot cascade through five before anyone notices.</p>
+    <p>The cost is latency: a ticket needs six runs to reach <code>done</code>. At a ten-minute cron that is an hour of wall clock against days of queue time, and the two human gates dominate anyway.</p>
+  </div>
+</section>
+
+<section id="s3">
+  <div class="sec-h"><span class="n">03</span><h2 class="t">Tiers and trust boundaries</h2></div>
+  <div class="prose">
+    <p>A Jira ticket can be opened by a customer, a contractor, or a web form. Its text reaches a model that, four stages later, commits code. That is a path from <em>a stranger typed something</em> to <em>code ran</em>, and the tier separation is what makes that path safe to have.</p>
+    <p>The child environment is built by <b>allowlist</b> in <code>adapter._child_env()</code> — <code>PATH</code>, <code>HOME</code>, the Bob key and a handful of locale variables — not by unsetting known-bad names. An allowlist fails closed the moment someone adds a variable; a denylist fails open.</p>
+  </div>
+
+  <figure class="sheet" id="f2">
+    <div class="draw">
+    <svg class="d" viewBox="0 0 1000 400" role="img" aria-label="Trust boundary diagram. The analysis and build tiers receive fenced ticket text and a credential-free worktree, hold only the Bob API key, and return JSON and files on disk. The control tier holds the Jira and git write tokens and performs all validation. Nothing with a credential is ever passed downward, and no prose is ever passed upward.">
+      <defs>
+        <marker id="b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0 0L10 5L0 10z"/></marker>
+        <marker id="bk" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah k" d="M0 0L10 5L0 10z"/></marker>
+        <marker id="bh" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah h" d="M0 0L10 5L0 10z"/></marker>
+        <pattern id="hz2" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect class="hz-bg" width="7" height="7"/><line class="hz-ln" x1="0" y1="0" x2="0" y2="7"/></pattern>
+      </defs>
+
+      <rect x="40" y="46" width="410" height="150" fill="url(#hz2)" class="reg-h"/>
+      <text class="ti" x="56" y="70">Analysis tier · read-only</text>
+      <text class="mo" x="56" y="88">foreman-triage · foreman-plan · foreman-critic</text>
+      <text class="su" x="56" y="107">mode groups: [read] — no edit, no shell, no MCP</text>
+      <text class="su" x="56" y="124">workspace: a read-only clone, remote stripped</text>
+      <text class="al h" x="56" y="146">credentials: BOB_API_KEY</text>
+      <text class="al h" x="56" y="162">no JIRA_API_TOKEN · no GITHUB_WRITE_TOKEN</text>
+      <text class="al h" x="56" y="178">input: ticket text inside a labelled fence</text>
+
+      <rect x="40" y="214" width="410" height="150" fill="url(#hz2)" class="reg-h"/>
+      <text class="ti" x="56" y="238">Build tier · writes, into a sandbox</text>
+      <text class="mo" x="56" y="256">foreman-build · foreman-verify</text>
+      <text class="su" x="56" y="275">groups: [read, command, edit(fileRegex)]</text>
+      <text class="su" x="56" y="292">workspace: disposable worktree, no git remote</text>
+      <text class="al h" x="56" y="314">credentials: BOB_API_KEY</text>
+      <text class="al h" x="56" y="330">shell access cannot push — there is nothing to push to</text>
+      <text class="al h" x="56" y="346">output: files on disk, inspected before anything acts</text>
+
+      <path class="ln m dash" d="M500 30V376"/>
+      <text class="lb h" x="508" y="26" text-anchor="start">trust boundary</text>
+
+      <rect class="tr" x="550" y="46" width="410" height="318"/>
+      <text class="ti" x="566" y="70">Control tier</text>
+      <text class="su" x="566" y="88">the only tier holding a credential that can change anything</text>
+
+      <line class="grid" x1="566" y1="102" x2="944" y2="102"/>
+      <text class="tim" x="566" y="122">contract.py</text>
+      <text class="su" x="566" y="138">re-reads every cited line from disk and byte-compares it</text>
+      <text class="tim" x="566" y="164">guardrails.py</text>
+      <text class="su" x="566" y="180">reads git diff · path allowlist · change budget · revert</text>
+      <text class="tim" x="566" y="206">gate.py</text>
+      <text class="su" x="566" y="222">identity · recency · shape · not-our-own-comment</text>
+      <text class="tim" x="566" y="248">machine.py</text>
+      <text class="su" x="566" y="264">one closed transition set; nothing else moves a ticket</text>
+      <text class="tim" x="566" y="290">jira.py · github.py · deploy.py</text>
+      <text class="su" x="566" y="306">publishers — the only modules that write anywhere</text>
+
+      <line class="grid" x1="566" y1="322" x2="944" y2="322"/>
+      <text class="al k" x="566" y="342">JIRA_API_TOKEN · GITHUB_WRITE_TOKEN · GITHUB_READ_TOKEN</text>
+
+      <path class="ln" d="M450 120H548" marker-end="url(#b)"/>
+      <text class="al" x="499" y="112" text-anchor="middle">one JSON envelope</text>
+      <path class="ln" d="M450 288H548" marker-end="url(#b)"/>
+      <text class="al" x="499" y="280" text-anchor="middle">files on disk</text>
+
+      <path class="ln k" d="M548 210H452" marker-end="url(#bk)"/>
+      <text class="al k" x="499" y="202" text-anchor="middle">fenced data + a plan</text>
+
+      <text class="strike" x="566" y="386">never downward: any credential  ·  never upward: prose that acts</text>
+    </svg>
+    </div>
+    <figcaption>
+      <div class="fno">Figure 2</div>
+      <div class="claim">The tier that reads text written by strangers holds one credential, for the model API. Persuading it is not a path to a token, because it has none.</div>
+      <div class="src">adapter.py · stages.py</div>
+    </figcaption>
+  </figure>
+
+  <div class="tw">
+  <table>
+    <thead><tr><th>Tier</th><th>Tools</th><th>Credentials</th><th>Workspace</th><th>Output</th></tr></thead>
+    <tbody>
+      <tr><td>Analysis</td><td><code>read</code></td><td><code>BOB_API_KEY</code></td><td>read-only clone, remote stripped</td><td>one JSON envelope</td></tr>
+      <tr><td>Build</td><td><code>read</code> <code>command</code> <code>edit(fileRegex)</code></td><td><code>BOB_API_KEY</code></td><td>disposable worktree, no remote</td><td>files on disk</td></tr>
+      <tr><td>Control</td><td>—</td><td>Jira, git read, git write</td><td>the host</td><td>comments, labels, branches, PRs</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="prose">
+    <p>One consequence is worth stating plainly: even if the build stage's shell were fully compromised, there is no configured git remote in its worktree. Pushing requires the control tier to add one, push, and remove it again — which it does only after the diff has passed inspection.</p>
+  </div>
+</section>
+<section id="s4">
+  <div class="sec-h"><span class="n">04</span><h2 class="t">The state machine</h2></div>
+  <div class="prose">
+    <p>One ticket is in exactly one state. Each state either has a <em>stage</em> that Foreman runs, or it is a <em>gate</em> where Foreman stops and waits for a person. Nothing else moves a ticket.</p>
+    <p>The canonical definition lives in <code>machine.py</code>, in Python, not in the YAML. Policy tunes which Jira status each state mirrors onto; it cannot add a transition, remove a gate, or make a stage skip its guard. A configuration file that can delete a human approval gate is not a configuration file, it is a vulnerability.</p>
+  </div>
+
+  <figure class="sheet" id="f3">
+    <div class="draw">
+    <svg class="d" viewBox="0 0 1000 540" role="img" aria-label="State machine diagram. Fifteen states. The main path runs intake, analyzed, awaiting-approval gate, approved, committed, deployed, awaiting-signoff gate, closing, done. Edges are labelled with the stage that runs. Each gate can also send the ticket to a revision state that loops back. Four human-hold and terminal states sit below, and the recovery path from them returns to intake rather than resuming mid-flight.">
+      <defs>
+        <marker id="c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0 0L10 5L0 10z"/></marker>
+        <marker id="cg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah g" d="M0 0L10 5L0 10z"/></marker>
+        <marker id="ch" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah h" d="M0 0L10 5L0 10z"/></marker>
+      </defs>
+
+      <rect class="box" x="40" y="70" width="110" height="46"/>
+      <text class="tim" x="52" y="90">intake</text>
+      <text class="su" x="52" y="106">picked up</text>
+
+      <path class="ln" d="M150 93H180" marker-end="url(#c)"/>
+      <text class="al" x="165" y="84" text-anchor="middle">triage</text>
+
+      <rect class="box" x="180" y="70" width="110" height="46"/>
+      <text class="tim" x="192" y="90">analyzed</text>
+      <text class="su" x="192" y="106">cause found</text>
+
+      <path class="ln" d="M290 93H320" marker-end="url(#c)"/>
+      <text class="al" x="305" y="84" text-anchor="middle">plan</text>
+
+      <rect class="gate" x="320" y="58" width="200" height="70"/>
+      <text class="tim" x="332" y="78">awaiting-approval</text>
+      <text class="su" x="332" y="95">analysis + plan posted</text>
+      <text class="al g" x="332" y="112">GATE — a human decides</text>
+      <text class="al g" x="332" y="124">nothing moves until they do</text>
+
+      <path class="ln g" d="M520 93H555" marker-end="url(#cg)"/>
+      <text class="al g" x="537" y="84" text-anchor="middle">approve</text>
+
+      <rect class="box" x="555" y="70" width="110" height="46"/>
+      <text class="tim" x="567" y="90">approved</text>
+      <text class="su" x="567" y="106">write the code</text>
+
+      <path class="ln g" d="M420 128V166" marker-end="url(#cg)"/>
+      <text class="al g" x="430" y="150">changes</text>
+      <rect class="box2" x="320" y="166" width="200" height="40"/>
+      <text class="tim" x="332" y="186">revising</text>
+      <text class="su" x="332" y="200">re-plan with their feedback</text>
+      <path class="ln" d="M320 186H292V128" marker-end="url(#c)"/>
+      <text class="al" x="286" y="150" text-anchor="end">plan</text>
+
+      <path class="ln" d="M665 93H700V228H20V283H40" marker-end="url(#c)"/>
+      <text class="al" x="712" y="160">build</text>
+      <text class="al" x="712" y="176">guardrails</text>
+      <text class="al" x="712" y="192">inspect the diff</text>
+
+      <rect class="box" x="40" y="260" width="110" height="46"/>
+      <text class="tim" x="52" y="280">committed</text>
+      <text class="su" x="52" y="296">branch + PR</text>
+
+      <path class="ln" d="M150 283H180" marker-end="url(#c)"/>
+      <text class="al" x="165" y="274" text-anchor="middle">deploy</text>
+
+      <rect class="box" x="180" y="260" width="110" height="46"/>
+      <text class="tim" x="192" y="280">deployed</text>
+      <text class="su" x="192" y="296">in non-prod</text>
+
+      <path class="ln" d="M290 283H320" marker-end="url(#c)"/>
+      <text class="al" x="305" y="274" text-anchor="middle">verify</text>
+
+      <rect class="gate" x="320" y="248" width="200" height="70"/>
+      <text class="tim" x="332" y="268">awaiting-signoff</text>
+      <text class="su" x="332" y="285">test evidence posted</text>
+      <text class="al g" x="332" y="302">GATE — a human decides</text>
+      <text class="al g" x="332" y="314">sees the real test result</text>
+
+      <path class="ln g" d="M520 283H555" marker-end="url(#cg)"/>
+      <text class="al g" x="537" y="274" text-anchor="middle">approve</text>
+
+      <rect class="box" x="555" y="260" width="110" height="46"/>
+      <text class="tim" x="567" y="280">closing</text>
+      <text class="su" x="567" y="296">close + schedule</text>
+
+      <path class="ln" d="M665 283H700" marker-end="url(#c)"/>
+      <text class="al" x="683" y="274" text-anchor="middle">close</text>
+
+      <rect class="tr" x="700" y="260" width="110" height="46"/>
+      <text class="tim" x="712" y="280">done</text>
+      <text class="su" x="712" y="296">terminal</text>
+
+      <path class="ln g" d="M420 318V352" marker-end="url(#cg)"/>
+      <text class="al g" x="430" y="338">changes</text>
+      <rect class="box2" x="320" y="352" width="200" height="40"/>
+      <text class="tim" x="332" y="372">reworking</text>
+      <text class="su" x="332" y="386">rework with their feedback</text>
+      <path class="ln" d="M320 372H95V306" marker-end="url(#c)"/>
+      <text class="al" x="150" y="366" text-anchor="middle">build</text>
+
+      <line class="grid" x1="40" y1="420" x2="960" y2="420"/>
+      <text class="lb" x="40" y="440">Human-hold and terminal states — Foreman stops, and says why on the ticket</text>
+
+      <rect class="box2" x="40" y="452" width="150" height="44"/>
+      <text class="tim" x="52" y="471">needs-info</text>
+      <text class="su" x="52" y="487">ticket too vague to act on</text>
+
+      <rect class="box2" x="204" y="452" width="150" height="44"/>
+      <text class="tim" x="216" y="471">failed</text>
+      <text class="su" x="216" y="487">a stage failed; no retry</text>
+
+      <rect class="box2" x="368" y="452" width="150" height="44"/>
+      <text class="tim" x="380" y="471">stalled</text>
+      <text class="su" x="380" y="487">past the gate timeout</text>
+
+      <rect class="box2" x="532" y="452" width="150" height="44"/>
+      <text class="tim" x="544" y="471">rejected</text>
+      <text class="su" x="544" y="487">terminal — no further action</text>
+
+      <path class="ln dash" d="M40 474H8V105H38" marker-end="url(#c)"/>
+      <text class="al" x="48" y="518">a human responds → the ticket re-enters intake and is analysed afresh</text>
+
+      <text class="strike" x="700" y="471">stalled never becomes approved</text>
+      <text class="strike" x="700" y="487">a timeout is reported, not resolved</text>
+    </svg>
+    </div>
+    <figcaption>
+      <div class="fno">Figure 3</div>
+      <div class="claim">Edges are stages; the two gold states are the only places a human is required. There is no path from analysis to committed code that does not pass through one.</div>
+      <div class="src">machine.py</div>
+    </figcaption>
+  </figure>
+
+  <div class="prose">
+    <p>Every legal move is one dictionary. Exhaustiveness is the point: a reader can audit the full set of ways a ticket can reach <code>done</code> by reading fifteen lines, and a unit test asserts that no gate can be bypassed.</p>
+  </div>
+
+  <pre class="tree"><span class="c">// machine.py — the complete transition set</span>
+TRANSITIONS = {
+    intake:              ["analyzed", "needs-info", "failed"],
+    "analyzed":          [<span class="g">"awaiting-approval"</span>, "needs-info", "failed"],
+    <span class="g">"awaiting-approval"</span>: ["approved", "revising", "rejected", "stalled", "failed"],
+    "revising":          [<span class="g">"awaiting-approval"</span>, "needs-info", "failed"],
+    "approved":          ["committed", "failed"],
+    "committed":         ["deployed", "failed"],
+    "deployed":          [<span class="g">"awaiting-signoff"</span>, "failed"],
+    <span class="g">"awaiting-signoff"</span>:  ["closing", "reworking", "rejected", "stalled", "failed"],
+    "reworking":         ["committed", "failed"],
+    "closing":           ["done", "failed"],
+    "done":              [],
+    "rejected":          [],
+    <span class="c">// recovery: back to the top, never resumed mid-flight —</span>
+    <span class="c">// the premises Foreman stopped on may no longer hold</span>
+    "needs-info":        [intake, "rejected"],
+    "failed":            [intake, "rejected"],
+    "stalled":           ["approved", "revising", "rejected", intake],
+}</pre>
+
+  <div class="prose">
+    <h3>Mirroring onto the board's own workflow</h3>
+    <p>Foreman's state lives in a label and an issue property, so it runs on a stock board with no custom workflow, no custom fields and no administrator rights. The optional <code>status_map</code> in <code>foreman.yaml</code> mirrors each state onto a Jira status where a matching one exists, and is skipped in silence where it does not. Requiring a bespoke workflow would make the system undeployable on most real projects; failing loudly when a status name does not match would make a workflow edit an outage.</p>
+  </div>
+</section>
+
+<section id="s5">
+  <div class="sec-h"><span class="n">05</span><h2 class="t">The human gates</h2></div>
+  <div class="prose">
+    <p>This is the most security-sensitive part of the system, and the reason is worth stating plainly. Downstream of an approval, an agent writes code and commits it. Upstream of it, <em>anyone with a Jira licence can leave a comment</em>. If "approved" means "someone typed the word approved", then the authorisation boundary for changing your source code is the same as the authorisation boundary for adding a thumbs-up to a ticket.</p>
+    <p>A reviewer replies on the ticket with one of three commands. Four independent checks must all pass before a comment counts as a decision.</p>
+  </div>
+
+  <figure class="sheet" id="f4">
+    <div class="draw">
+    <svg class="d" viewBox="0 0 1000 400" role="img" aria-label="Gate evaluation diagram. Every comment on the ticket passes through four filters in order: shape, identity, recency, and not-our-own-comment. Comments rejected by the last three are reported on the ticket as rejected attempts rather than discarded. Surviving decisions are sorted by time and the latest one wins.">
+      <defs>
+        <marker id="e" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0 0L10 5L0 10z"/></marker>
+        <marker id="eh" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah h" d="M0 0L10 5L0 10z"/></marker>
+        <marker id="eg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah g" d="M0 0L10 5L0 10z"/></marker>
+      </defs>
+
+      <rect class="box" x="30" y="150" width="120" height="58"/>
+      <text class="ti" x="42" y="172">Ticket</text>
+      <text class="su" x="42" y="189">every comment</text>
+      <text class="mo" x="42" y="203">n = all</text>
+
+      <path class="ln" d="M150 179H186" marker-end="url(#e)"/>
+
+      <rect class="box2" x="186" y="140" width="150" height="78"/>
+      <text class="lb" x="198" y="158">Filter 1</text>
+      <text class="ti" x="198" y="176">Shape</text>
+      <text class="su" x="198" y="192">the command opens</text>
+      <text class="su" x="198" y="206">the comment</text>
+      <path class="ln h" d="M261 218V262" marker-end="url(#eh)"/>
+      <text class="al" x="270" y="242">not a decision</text>
+      <text class="al" x="270" y="256">— ordinary chat</text>
+
+      <path class="ln" d="M336 179H372" marker-end="url(#e)"/>
+
+      <rect class="box2" x="372" y="140" width="150" height="78"/>
+      <text class="lb" x="384" y="158">Filter 2</text>
+      <text class="ti" x="384" y="176">Identity</text>
+      <text class="su" x="384" y="192">author is on the</text>
+      <text class="su" x="384" y="206">approver allowlist</text>
+      <path class="ln h" d="M447 218V300" marker-end="url(#eh)"/>
+
+      <path class="ln" d="M522 179H558" marker-end="url(#e)"/>
+
+      <rect class="box2" x="558" y="140" width="150" height="78"/>
+      <text class="lb" x="570" y="158">Filter 3</text>
+      <text class="ti" x="570" y="176">Recency</text>
+      <text class="su" x="570" y="192">post-dates the thing</text>
+      <text class="su" x="570" y="206">being approved</text>
+      <path class="ln h" d="M633 218V300" marker-end="url(#eh)"/>
+
+      <path class="ln" d="M708 179H744" marker-end="url(#e)"/>
+
+      <rect class="box2" x="744" y="140" width="150" height="78"/>
+      <text class="lb" x="756" y="158">Filter 4</text>
+      <text class="ti" x="756" y="176">Not us</text>
+      <text class="su" x="756" y="192">no Foreman marker</text>
+      <text class="su" x="756" y="206">in the body</text>
+      <path class="ln h" d="M819 218V300" marker-end="url(#eh)"/>
+
+      <path class="ln g" d="M894 179H944V96H30V150" marker-end="url(#eg)"/>
+      <text class="al g" x="600" y="88" text-anchor="middle">survivors sorted by time — the latest valid decision wins</text>
+
+      <rect class="gate" x="30" y="46" width="300" height="38"/>
+      <text class="ti" x="42" y="70">Decision: approve · changes · reject</text>
+
+      <rect x="372" y="300" width="522" height="62" fill="url(#hz3)" class="reg-h"/>
+      <defs><pattern id="hz3" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect class="hz-bg" width="7" height="7"/><line class="hz-ln" x1="0" y1="0" x2="0" y2="7"/></pattern></defs>
+      <text class="ti" x="386" y="322">Rejected attempts — posted on the ticket, not swallowed</text>
+      <text class="su" x="386" y="340">not_authorised · stale · self</text>
+      <text class="al h" x="386" y="356">an unauthorised approval attempt is something the team should see</text>
+
+      <rect class="box" x="30" y="262" width="320" height="100"/>
+      <text class="lb" x="42" y="280">Why filter 3 exists</text>
+      <text class="su" x="42" y="298">Foreman posts plan v1. A reviewer approves.</text>
+      <text class="su" x="42" y="314">The ticket goes round the revise loop twice.</text>
+      <text class="su" x="42" y="330">Foreman posts plan v3, substantially different.</text>
+      <text class="al h" x="42" y="350">Without recency, v1's approval authorises v3.</text>
+    </svg>
+    </div>
+    <figcaption>
+      <div class="fno">Figure 4</div>
+      <div class="claim">An approval is an identity and a timestamp, not a word. The three identity-ish failures are reported on the ticket, because a silently ignored approval attempt is exactly the event you most want to see.</div>
+      <div class="src">gate.py</div>
+    </figcaption>
+  </figure>
+
+  <div class="tw">
+  <table>
+    <thead><tr><th>Check</th><th>Rejects</th><th>The failure it prevents</th></tr></thead>
+    <tbody>
+      <tr><td><b>Shape</b></td><td>the command is not the first text of the comment</td><td>"I don't think we should <code>/foreman approve</code> yet" reading as an approval</td></tr>
+      <tr><td><b>Identity</b></td><td>author not in <code>FOREMAN_APPROVERS</code></td><td>anyone with a Jira licence authorising a code change</td></tr>
+      <tr><td><b>Recency</b></td><td>comment predates <code>gate_opened</code></td><td>a stale approval silently authorising a later, different revision</td></tr>
+      <tr><td><b>Not us</b></td><td>body carries a Foreman marker</td><td>the rendered plan — which quotes the command, because it must tell the reviewer what to type — approving itself</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="prose">
+    <div class="pull warn"><p><b>An empty allowlist authorises nobody, never everybody.</b> Every ticket stalls at the first gate and <code>doctor</code> reports it as a problem. The alternative default turns a misconfiguration into an open door.</p></div>
+
+    <h3>Identifying Foreman's own comments</h3>
+    <p>Filter 4 matches on the invisible marker every rendered comment carries, not on "the author is the account Foreman authenticates as". That version is both too strict and too weak. Too strict because a small team may run Foreman under an account a human also uses, and every approval would be silently discarded — a failure with no error anywhere. Too weak because it says nothing about a Foreman comment posted under some other identity. Matching on the marker asks the question actually meant: <em>did Foreman write this?</em></p>
+    <p>Running Foreman under its own service account remains the right deployment, for a reason this check cannot help with: when the bot and the approver share an account, the ticket history cannot tell you who approved. <code>doctor</code> warns about it.</p>
+
+    <h3>Timeouts</h3>
+    <p>A gate that has waited longer than <code>FOREMAN_APPROVAL_TIMEOUT_HOURS</code> moves the ticket to <code>stalled</code> and reports it in the run summary. It is never auto-approved. There is no configuration value that causes a gate to pass without a decision, and that is deliberate — the absence of such a value is a property of the system, not an oversight.</p>
+  </div>
+</section>
+<section id="s6">
+  <div class="sec-h"><span class="n">06</span><h2 class="t">Agent harness</h2></div>
+  <div class="prose">
+    <p>Every Bob Shell invocation detail lives in <code>adapter.py</code> and nowhere else, so a Bob upgrade is a change to one file rather than to the pipeline. That file currently spans two incompatible CLI generations.</p>
+    <p>Bob Shell changed shape at 2.0: the headless entrypoint moved from top-level flags to a <code>run</code> subcommand, several flags were renamed, and <code>--allowed-tools</code> disappeared entirely — tool restriction moved into the mode definition's <code>groups</code>. The dialect is <em>detected</em> from <code>--help</code>, not configured. A fleet runs mixed versions for months during a rollout, and a harness that works only on the version its author had installed is a harness that fails on the first machine that is not theirs.</p>
+  </div>
+
+  <figure class="sheet" id="f5">
+    <div class="draw">
+    <svg class="d" viewBox="0 0 1000 360" role="img" aria-label="Adapter diagram. A capability probe runs bob --help and bob run --help once and caches which flags exist, then selects the 1.0.x or 2.x command shape. Both paths converge on one result object carrying the parsed payload, the cost and the tool-call count.">
+      <defs>
+        <marker id="g1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0 0L10 5L0 10z"/></marker>
+        <marker id="g1k" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah k" d="M0 0L10 5L0 10z"/></marker>
+      </defs>
+
+      <rect class="box" x="30" y="130" width="180" height="76"/>
+      <text class="ti" x="42" y="152">Capability probe</text>
+      <text class="su" x="42" y="169">bob --help</text>
+      <text class="su" x="42" y="184">bob run --help</text>
+      <text class="al" x="42" y="200">once, then cached</text>
+
+      <path class="ln" d="M210 150H262" marker-end="url(#g1)"/>
+      <path class="ln" d="M210 186H262" marker-end="url(#g1)"/>
+
+      <rect class="box2" x="262" y="56" width="330" height="112"/>
+      <text class="lb" x="274" y="74">dialect v1 — Bob Shell 1.0.x</text>
+      <text class="mo k" x="274" y="96">bob --chat-mode S</text>
+      <text class="mo" x="274" y="112">--output-format json --max-coins N</text>
+      <text class="mo" x="274" y="128">--allowed-tools ... --approval-mode ...</text>
+      <text class="mo" x="274" y="144">--sandbox "&lt;task&gt;"</text>
+      <text class="al" x="274" y="161">key: BOBSHELL_API_KEY · budget in coins</text>
+
+      <rect class="box2" x="262" y="182" width="330" height="128"/>
+      <text class="lb g" x="274" y="200">dialect v2 — Bob Shell 2.x · detected here</text>
+      <text class="mo k" x="274" y="222">bob run --mode S</text>
+      <text class="mo" x="274" y="238">--format json --max-cost N --max-turns N</text>
+      <text class="mo" x="274" y="254">--workspace &lt;path&gt; --team-id &lt;uuid&gt;</text>
+      <text class="mo" x="274" y="270">--disable-tool-groups mcp,subagent</text>
+      <text class="al" x="274" y="287">key: BOB_API_KEY · budget is a currency amount</text>
+      <text class="al h" x="274" y="303">no --allowed-tools: restriction lives in the mode</text>
+
+      <path class="ln" d="M592 112H660V170" marker-end="url(#g1)"/>
+      <path class="ln" d="M592 246H660V204" marker-end="url(#g1)"/>
+
+      <rect class="tr" x="660" y="130" width="300" height="112"/>
+      <text class="ti" x="672" y="152">BobResult — one shape, either dialect</text>
+      <text class="mo k" x="672" y="174">payload   parsed JSON envelope</text>
+      <text class="mo" x="672" y="190">cost      from stats.session_costs</text>
+      <text class="mo" x="672" y="206">tool_calls, duration, exit_code</text>
+      <text class="mo" x="672" y="222">error_kind  budget · timeout · bad_json …</text>
+      <text class="al k" x="672" y="238">nothing downstream knows which dialect ran</text>
+
+      <line class="grid" x1="30" y1="266" x2="210" y2="266"/>
+      <text class="lb h" x="30" y="286">Fails loudly when</text>
+      <text class="su" x="30" y="304">a flag it relies on</text>
+      <text class="su" x="30" y="319">is missing — rather</text>
+      <text class="su" x="30" y="334">than running with no</text>
+      <text class="su" x="30" y="349">budget cap at all</text>
+    </svg>
+    </div>
+    <figcaption>
+      <div class="fno">Figure 5</div>
+      <div class="claim">The probe exists so that an upgrade which renames or drops a flag fails at preflight, rather than silently producing runs with no budget cap — a failure that looks exactly like success until the bill arrives.</div>
+      <div class="src">adapter.py</div>
+    </figcaption>
+  </figure>
+
+  <div class="prose">
+    <h3>Tool access travels with the mode</h3>
+    <p>In 2.x the analysis modes declare <code>groups: [read]</code>; the build mode declares <code>[read, command, [edit, {fileRegex}]]</code>. A restriction that travels with the mode cannot be forgotten by a caller, which is a better place for it than a flag at every call site. The <code>fileRegex</code> tuple form is a native per-mode path allowlist, and Foreman uses it — then re-checks the resulting diff anyway, because a declaration is not a control.</p>
+    <div class="pull"><p><b>Budget units are not interchangeable.</b> 1.0.x <code>--max-coins</code> counts coins; 2.x <code>--max-cost</code> is a currency amount. <code>foreman.yaml</code> carries a separate table for each, because passing a coin count as a cost cap is how a stage silently gets a budget three orders of magnitude off.</p></div>
+  </div>
+</section>
+
+<section id="s7">
+  <div class="sec-h"><span class="n">07</span><h2 class="t">Stage pipeline</h2></div>
+  <div class="prose">
+    <p>Six model invocations carry a ticket from intake to closed. Each one is paired with something the harness does afterwards that the model cannot influence.</p>
+  </div>
+
+  <figure class="sheet" id="f6">
+    <div class="draw">
+    <svg class="d" viewBox="0 0 1000 430" role="img" aria-label="Stage pipeline. Six model invocations across the top, each paired below with the harness check that follows it: citations re-read from disk, an adversarial pass, identity-checked approval, diff inspection, the deployment verdict, and the harness running the test suite itself.">
+      <defs>
+        <marker id="p1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0 0L10 5L0 10z"/></marker>
+        <marker id="p1k" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah k" d="M0 0L10 5L0 10z"/></marker>
+      </defs>
+
+      <text class="lb h" x="30" y="44">Bob Shell proposes</text>
+      <text class="lb k" x="30" y="258">The harness disposes — each of these is a file read, an exit code or an identity check</text>
+
+      <rect class="box" x="30" y="58" width="140" height="74"/>
+      <text class="tim" x="42" y="78">foreman-triage</text>
+      <text class="su" x="42" y="96">reads the code,</text>
+      <text class="su" x="42" y="111">cites what it finds</text>
+      <text class="al" x="42" y="127">$0.14 · 9 tool calls</text>
+
+      <rect class="box" x="186" y="58" width="140" height="74"/>
+      <text class="tim" x="198" y="78">foreman-plan</text>
+      <text class="su" x="198" y="96">smallest change,</text>
+      <text class="su" x="198" y="111">acceptance criteria</text>
+      <text class="al" x="198" y="127">$0.09 · 6 tool calls</text>
+
+      <rect class="box" x="342" y="58" width="140" height="74"/>
+      <text class="tim" x="354" y="78">foreman-critic</text>
+      <text class="su" x="354" y="96">argues against</text>
+      <text class="su" x="354" y="111">the plan</text>
+      <text class="al" x="354" y="127">$0.20 · 9 tool calls</text>
+
+      <rect class="box" x="576" y="58" width="140" height="74"/>
+      <text class="tim" x="588" y="78">foreman-build</text>
+      <text class="su" x="588" y="96">writes the code in</text>
+      <text class="su" x="588" y="111">a disposable worktree</text>
+      <text class="al" x="588" y="127">$0.23 · 7 tool calls</text>
+
+      <rect class="box" x="810" y="58" width="150" height="74"/>
+      <text class="tim" x="822" y="78">foreman-verify</text>
+      <text class="su" x="822" y="96">writes tests for the</text>
+      <text class="su" x="822" y="111">acceptance criteria</text>
+      <text class="al" x="822" y="127">$0.82 · 23 tool calls</text>
+
+      <rect class="gate" x="498" y="58" width="62" height="74"/>
+      <text class="al g" x="529" y="86" text-anchor="middle">GATE</text>
+      <text class="al g" x="529" y="102" text-anchor="middle">1</text>
+      <rect class="gate" x="810" y="150" width="150" height="34"/>
+      <text class="al g" x="885" y="171" text-anchor="middle">GATE 2 — sign-off</text>
+
+      <path class="ln" d="M170 95H184" marker-end="url(#p1)"/>
+      <path class="ln" d="M326 95H340" marker-end="url(#p1)"/>
+      <path class="ln" d="M482 95H496" marker-end="url(#p1)"/>
+      <path class="ln g" d="M560 95H574" marker-end="url(#p1)"/>
+      <path class="ln" d="M716 95H808" marker-end="url(#p1)"/>
+      <text class="al" x="762" y="88" text-anchor="middle">deploy</text>
+
+      <path class="ln k" d="M100 132V186" marker-end="url(#p1k)"/>
+      <path class="ln k" d="M256 132V186" marker-end="url(#p1k)"/>
+      <path class="ln k" d="M412 132V186" marker-end="url(#p1k)"/>
+      <path class="ln k" d="M646 132V186" marker-end="url(#p1k)"/>
+      <path class="ln k" d="M885 184V196" marker-end="url(#p1k)"/>
+
+      <rect class="tr" x="30" y="272" width="140" height="106"/>
+      <text class="lb k" x="42" y="290">contract.py</text>
+      <text class="su" x="42" y="308">every cited line</text>
+      <text class="su" x="42" y="323">re-read from disk</text>
+      <text class="su" x="42" y="338">and byte-compared</text>
+      <text class="al k" x="42" y="358">6 of 6 verified</text>
+      <text class="al h" x="42" y="372">all fail → ticket stops</text>
+
+      <rect class="tr" x="186" y="272" width="140" height="106"/>
+      <text class="lb k" x="198" y="290">contract.py</text>
+      <text class="su" x="198" y="308">acceptance criteria</text>
+      <text class="su" x="198" y="323">are mandatory</text>
+      <text class="al k" x="198" y="343">no criteria → the</text>
+      <text class="al k" x="198" y="357">sign-off gate has</text>
+      <text class="al k" x="198" y="371">nothing to judge</text>
+
+      <rect class="box2" x="342" y="272" width="140" height="106"/>
+      <text class="lb" x="354" y="290">advisory only</text>
+      <text class="su" x="354" y="308">the critic's verdict</text>
+      <text class="su" x="354" y="323">is shown to the human</text>
+      <text class="su" x="354" y="338">alongside the plan</text>
+      <text class="al h" x="354" y="358">never used as a veto</text>
+      <text class="al h" x="354" y="372">a machine no-one sees</text>
+
+      <rect class="tr" x="576" y="272" width="140" height="106"/>
+      <text class="lb k" x="588" y="290">guardrails.py</text>
+      <text class="su" x="588" y="308">reads git diff</text>
+      <text class="su" x="588" y="323">path · budget · tests</text>
+      <text class="su" x="588" y="338">secrets · in-plan</text>
+      <text class="al h" x="588" y="358">violation → revert</text>
+      <text class="al h" x="588" y="372">in full, then stop</text>
+
+      <rect class="tr" x="810" y="204" width="150" height="174"/>
+      <text class="lb k" x="822" y="222">gitops.run_command</text>
+      <text class="su" x="822" y="240">the harness runs</text>
+      <text class="su" x="822" y="255">the suite itself</text>
+      <text class="al k" x="822" y="275">the exit code is</text>
+      <text class="al k" x="822" y="289">the record</text>
+      <line class="grid" x1="822" y1="302" x2="948" y2="302"/>
+      <text class="al h" x="822" y="322">the verify contract</text>
+      <text class="al h" x="822" y="336">has no pass/fail</text>
+      <text class="al h" x="822" y="350">field at all — there</text>
+      <text class="al h" x="822" y="364">is nothing for the</text>
+      <text class="al h" x="822" y="378">model to assert</text>
+    </svg>
+    </div>
+    <figcaption>
+      <div class="fno">Figure 6</div>
+      <div class="claim">Costs are from the observed reference run. Every model output is paired with a check the model cannot argue with: a file read, a diff, an exit code, or an identity.</div>
+      <div class="src">stages.py · contract.py · guardrails.py</div>
+    </figcaption>
+  </figure>
+</section>
+
+<section id="s8">
+  <div class="sec-h"><span class="n">08</span><h2 class="t">Contracts and evidence</h2></div>
+  <div class="prose">
+    <p>Every stage emits one JSON envelope, and <code>contract.py</code> is where an envelope stops being a claim and becomes a fact the pipeline is willing to act on. Three levels of scrutiny, in increasing order of how much they matter.</p>
+    <p><b>Shape</b> — required fields, enumerated values, sane types. Cheap, and it catches a mode whose instructions have drifted.</p>
+    <p><b>Evidence</b> — any citation of the repository is re-read from disk and byte-compared.</p>
+    <p><b>Refusal to accept self-assessment</b> — two fields are conspicuously absent from the contracts, and both omissions are load-bearing.</p>
+  </div>
+
+  <figure class="sheet narrow" id="f7">
+    <div class="draw">
+    <svg class="d" viewBox="0 0 1000 300" role="img" aria-label="Evidence verification flow. A cited file and line range is read from disk. If the quoted text matches, the citation is accepted. If not, the file is searched for the quoted text; when found the line numbers are corrected, and when absent the citation is deleted. An analysis whose every citation fails is rejected whole.">
+      <defs>
+        <marker id="v1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0 0L10 5L0 10z"/></marker>
+        <marker id="v1k" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah k" d="M0 0L10 5L0 10z"/></marker>
+        <marker id="v1h" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah h" d="M0 0L10 5L0 10z"/></marker>
+      </defs>
+
+      <rect class="box" x="30" y="112" width="160" height="70"/>
+      <text class="ti" x="42" y="134">Citation</text>
+      <text class="mo" x="42" y="152">file · line_start</text>
+      <text class="mo" x="42" y="167">line_end · snippet</text>
+
+      <path class="ln" d="M190 147H236" marker-end="url(#v1)"/>
+
+      <rect class="box2" x="236" y="112" width="170" height="70"/>
+      <text class="ti" x="248" y="134">Read those lines</text>
+      <text class="su" x="248" y="152">from the checkout</text>
+      <text class="mo" x="248" y="168">whitespace-normalised</text>
+
+      <path class="ln k" d="M406 130H470" marker-end="url(#v1k)"/>
+      <text class="al k" x="438" y="122" text-anchor="middle">match</text>
+      <path class="ln" d="M406 168H470" marker-end="url(#v1)"/>
+      <text class="al" x="438" y="184" text-anchor="middle">no match</text>
+
+      <rect class="tr" x="470" y="56" width="200" height="56"/>
+      <text class="ti" x="482" y="78">Accepted</text>
+      <text class="al k" x="482" y="96">evidence_verified = true</text>
+
+      <rect class="box2" x="470" y="150" width="200" height="70"/>
+      <text class="ti" x="482" y="172">Search the whole file</text>
+      <text class="su" x="482" y="190">for the quoted text</text>
+      <text class="al" x="482" y="208">models quote well, count badly</text>
+
+      <path class="ln k" d="M670 172H740V102" marker-end="url(#v1k)"/>
+      <text class="al k" x="748" y="136">found →</text>
+      <text class="al k" x="748" y="150">correct the range</text>
+
+      <path class="ln h" d="M670 205H740V250" marker-end="url(#v1h)"/>
+
+      <rect x="740" y="250" width="230" height="40" fill="url(#hz4)" class="reg-h"/>
+      <defs><pattern id="hz4" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect class="hz-bg" width="7" height="7"/><line class="hz-ln" x1="0" y1="0" x2="0" y2="7"/></pattern></defs>
+      <text class="ti" x="752" y="270">Absent → citation deleted</text>
+      <text class="al h" x="752" y="285">a fabrication is not a near miss</text>
+
+      <rect class="box" x="30" y="220" width="380" height="64"/>
+      <text class="lb" x="42" y="238">The distinction being drawn</text>
+      <text class="su" x="42" y="256">The guarantee is "this code exists in this file",</text>
+      <text class="su" x="42" y="272">not "the model counted lines correctly".</text>
+    </svg>
+    </div>
+    <figcaption>
+      <div class="fno">Figure 7</div>
+      <div class="claim">Line numbers are corrected rather than trusted; quoted text that is not in the file deletes the citation. Rejecting a true finding over an off-by-two would throw away the work this system exists to do.</div>
+      <div class="src">contract.py</div>
+    </figcaption>
+  </figure>
+
+  <div class="tw">
+  <table>
+    <thead><tr><th>Stage</th><th>Envelope</th><th>Enforced beyond shape</th><th>On failure</th></tr></thead>
+    <tbody>
+      <tr><td><code>triage</code></td><td><code>analysis</code></td><td>every citation verified against disk; <code>understood:false</code> requires questions</td><td>no verified evidence → ticket stops</td></tr>
+      <tr><td><code>plan</code></td><td><code>plan</code></td><td>acceptance criteria mandatory; paths relative; actions enumerated</td><td>rejected, ticket → <code>failed</code></td></tr>
+      <tr><td><code>critic</code></td><td><code>review</code></td><td>any non-accept verdict must carry reasons</td><td>unreasoned rejection discarded</td></tr>
+      <tr><td><code>build</code></td><td><code>implementation</code></td><td>commentary only — <b>the diff is the record</b></td><td>subject truncated, never rejected on prose</td></tr>
+      <tr><td><code>verify</code></td><td><code>verification</code></td><td><b>no pass/fail field exists</b>; must add at least one test</td><td>no tests → ticket stops</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="prose">
+    <div class="pull good"><p>A pipeline where the model grades its own homework has no error detection at all — every failure mode produces the same output as success. The two absent fields are how that is avoided, and a unit test asserts that a model volunteering <code>"passed": true</code> has it stripped.</p></div>
+  </div>
+</section>
+<section id="s9">
+  <div class="sec-h"><span class="n">09</span><h2 class="t">Guardrails</h2></div>
+  <div class="prose">
+    <p>The build stage has write tools and a disposable worktree. This is what stands between it and a branch. It does not ask the model what it changed — it reads <code>git diff</code> and decides.</p>
+  </div>
+
+  <figure class="sheet" id="f8">
+    <div class="draw">
+    <svg class="d" viewBox="0 0 1000 400" role="img" aria-label="Diff inspection flow. After the build stage runs, Foreman's own scaffolding is removed from the worktree, the full diff including untracked files is collected, and six rules are applied. Any blocking violation reverts the worktree in full and stops the ticket; a clean diff is committed, pushed and turned into a pull request.">
+      <defs>
+        <marker id="q1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0 0L10 5L0 10z"/></marker>
+        <marker id="q1k" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah k" d="M0 0L10 5L0 10z"/></marker>
+        <marker id="q1h" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah h" d="M0 0L10 5L0 10z"/></marker>
+        <pattern id="hz5" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect class="hz-bg" width="7" height="7"/><line class="hz-ln" x1="0" y1="0" x2="0" y2="7"/></pattern>
+      </defs>
+
+      <rect x="30" y="56" width="180" height="70" fill="url(#hz5)" class="reg-h"/>
+      <text class="ti" x="42" y="78">Worktree after build</text>
+      <text class="su" x="42" y="96">files on disk</text>
+      <text class="al h" x="42" y="114">whatever the model did</text>
+
+      <path class="ln" d="M210 91H256" marker-end="url(#q1)"/>
+
+      <rect class="box2" x="256" y="56" width="180" height="70"/>
+      <text class="ti" x="268" y="78">Remove the kit</text>
+      <text class="su" x="268" y="96">.bob/ · AGENTS.md</text>
+      <text class="al" x="268" y="114">our scaffolding is not the change</text>
+
+      <path class="ln" d="M436 91H482" marker-end="url(#q1)"/>
+
+      <rect class="box2" x="482" y="56" width="180" height="70"/>
+      <text class="ti" x="494" y="78">Collect the diff</text>
+      <text class="mo" x="494" y="96">git add -A; git diff</text>
+      <text class="al" x="494" y="114">untracked files count too</text>
+
+      <path class="ln" d="M572 126V162" marker-end="url(#q1)"/>
+
+      <rect class="tr" x="256" y="162" width="500" height="132"/>
+      <text class="lb k" x="268" y="180">Six rules, applied to the diff</text>
+      <text class="tim" x="268" y="202">existing tests</text><text class="su" x="400" y="202">not modified, not deleted — ever</text>
+      <text class="tim" x="268" y="220">path allowlist</text><text class="su" x="400" y="220">only files the approved plan named</text>
+      <text class="tim" x="268" y="238">hard denials</text><text class="su" x="400" y="238">CI config · .bob/ · key material</text>
+      <text class="tim" x="268" y="256">change budget</text><text class="su" x="400" y="256">15 files · 600 lines · 200 deleted</text>
+      <text class="tim" x="268" y="274">secrets</text><text class="su" x="400" y="274">scanned in added lines only</text>
+      <text class="tim" x="268" y="290">binaries</text><text class="su" x="400" y="290">the one thing a reviewer cannot review</text>
+
+      <path class="ln h" d="M256 228H150V300" marker-end="url(#q1h)"/>
+      <text class="al h" x="60" y="222">blocking</text>
+
+      <rect x="30" y="300" width="200" height="76" fill="url(#hz5)" class="reg-h"/>
+      <text class="ti" x="42" y="322">Revert, in full</text>
+      <text class="mo" x="42" y="340">git reset --hard</text>
+      <text class="mo" x="42" y="355">git clean -fdx</text>
+      <text class="al h" x="42" y="371">ticket → failed, with the table</text>
+
+      <path class="ln k" d="M756 228H820V152" marker-end="url(#q1k)"/>
+      <text class="al k" x="828" y="200">clean</text>
+
+      <rect class="tr" x="780" y="56" width="190" height="96"/>
+      <text class="ti" x="792" y="78">Commit · push · PR</text>
+      <text class="mo" x="792" y="96">branch foreman/&lt;KEY&gt;</text>
+      <text class="su" x="792" y="113">trailers: ticket, approver,</text>
+      <text class="su" x="792" y="128">run id</text>
+      <text class="al k" x="792" y="145">remote added, used, removed</text>
+
+      <rect class="box" x="480" y="310" width="490" height="66"/>
+      <text class="lb" x="492" y="328">Why a full revert, not a per-file one</text>
+      <text class="su" x="492" y="346">A partially reverted change is a half-applied change on a branch, which is worse</text>
+      <text class="su" x="492" y="362">than none. Leaving it on disk invites a later stage to find it and commit it.</text>
+    </svg>
+    </div>
+    <figcaption>
+      <div class="fno">Figure 8</div>
+      <div class="claim">Each rule corresponds to an observed failure of autonomous build stages. The first one — never touch an existing test — is the one to refuse to loosen, every time.</div>
+      <div class="src">guardrails.py · policy/guardrails.yaml</div>
+    </figcaption>
+  </figure>
+
+  <div class="prose">
+    <h3>The rule that earns its place</h3>
+    <p>The cheapest way to make a failing test pass is to change the test, and a model under instruction to "make the tests pass" will find that route. Modifying or deleting a test the approved plan did not name is a blocking violation. If a test fails against a change, one of two things is true and both are useful: the change is wrong, or the test encodes behaviour that was deliberately changed — and whether a behavioural contract should move is exactly the kind of decision this pipeline routes to a person.</p>
+
+    <h3>Paths nothing can authorise</h3>
+    <p>CI workflows, <code>.bob/</code>, <code>.foreman/</code>, <code>AGENTS.md</code>, <code>.env</code> and key material are denied regardless of the plan, the approval, or the ticket. The pattern is simple: <b>you may not edit the things that constrain you.</b> An agent that can rewrite its own guardrails does not have guardrails. No value in <code>policy/guardrails.yaml</code> can widen this set.</p>
+
+    <h3>An implementation detail that was a real bug</h3>
+    <p><code>extension/install.sh</code> writes <code>.bob/</code> and <code>AGENTS.md</code> into the worktree so Bob can resolve its modes. Left in place, every build stage "changes" eight files under a denied path, and the harness fails every ticket on its own footprint — with an error indistinguishable from the model misbehaving. The scaffolding is removed before the diff is taken. This is recorded here because it is the kind of defect that is obvious once seen and very expensive before.</p>
+  </div>
+</section>
+
+<section id="s10">
+  <div class="sec-h"><span class="n">10</span><h2 class="t">Deploy and verify</h2></div>
+  <div class="prose">
+    <p>Foreman does not deploy. It asks whatever already deploys the software to do it, then waits. That boundary is deliberate: a delivery agent that also holds deployment credentials is an agent whose blast radius is the estate, and every organisation that wants one already has a pipeline that does this properly.</p>
+  </div>
+
+  <div class="tw">
+  <table>
+    <thead><tr><th>Mode</th><th>Mechanism</th><th>Reports</th><th>Use for</th></tr></thead>
+    <tbody>
+      <tr><td><code>simulated</code></td><td>runs <code>policy/deploy-simulate.sh</code></td><td>success or failure, plus a published URL</td><td>rehearsal and the reference board</td></tr>
+      <tr><td><code>github-actions</code></td><td><code>workflow_dispatch</code>, then polls the run</td><td>the run's actual conclusion</td><td>GitHub and GHES</td></tr>
+      <tr><td><code>webhook</code></td><td>POSTs the payload</td><td><span class="pill n">dispatched</span> — not <span class="pill ok">success</span></td><td>Jenkins, Tekton, anything with an endpoint</td></tr>
+      <tr><td><code>none</code></td><td>skips the stage</td><td>—</td><td>first weeks of a rollout</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="prose">
+    <p>The webhook mode reports <code>dispatched</code> rather than <code>success</code> on purpose. A 2xx says the request was accepted, not that the deployment worked, and a ticket that claims otherwise is a ticket that lies to the reviewer at the next gate.</p>
+
+    <h3>Verification</h3>
+    <p>The verify stage clones <b>the branch that was built and deployed</b>, not <code>main</code>. Testing a different tree than the one running in non-prod is a way to produce green evidence for code nobody is running.</p>
+    <p>It runs under a tighter guardrail set than the build stage: it may add test files and nothing else. Letting it touch the implementation would let it fix the code to match its tests, which inverts the point of the stage. If the suite fails, the tests are <em>not</em> pushed — the failure is the finding, and pushing it would break everyone else's build. It is reported at the gate instead.</p>
+    <div class="pull good"><p>On the reference run the verify stage added seven tests and reported, unprompted, that <b>three of them pass against both the original and the fixed code</b> — marking them as regression guards and explicitly not counting them as coverage. That behaviour comes from one line in <code>rules/05-definition-of-done.md</code>: a test that passes either way is worse than none, because it looks like coverage.</p></div>
+  </div>
+</section>
+
+<section id="s11">
+  <div class="sec-h"><span class="n">11</span><h2 class="t">Where state lives</h2></div>
+  <div class="prose">
+    <p>Per-ticket state is a Jira <em>issue property</em>, with the current state mirrored to a <em>label</em> for humans. Not in the local database.</p>
+  </div>
+
+  <figure class="sheet" id="f9">
+    <div class="draw">
+    <svg class="d" viewBox="0 0 1000 300" role="img" aria-label="State storage diagram. The Jira issue property holds the authoritative machine record and the label holds the human-visible signal; both live on the board. The local SQLite file holds run history and per-stage cost, and is a cache that can be deleted without loss. Prompt and response logs are written per ticket and never overwritten.">
+      <defs><marker id="s1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0 0L10 5L0 10z"/></marker></defs>
+
+      <rect class="tr" x="30" y="50" width="420" height="200"/>
+      <text class="lb k" x="42" y="70">On the board — the source of truth</text>
+
+      <rect class="box" x="48" y="84" width="384" height="84"/>
+      <text class="tim" x="60" y="104">capybara.foreman.state</text>
+      <text class="su" x="60" y="121">issue property · the authoritative machine record</text>
+      <text class="mo" x="60" y="139">state · revision · gate_opened · analysis · plan</text>
+      <text class="mo" x="60" y="154">branch · commit_sha · pr_url · decision · test</text>
+
+      <rect class="gate" x="48" y="180" width="384" height="56"/>
+      <text class="tim" x="60" y="200">foreman:awaiting-approval</text>
+      <text class="su" x="60" y="217">label · the human-visible signal</text>
+      <text class="al g" x="60" y="231">a reviewer reads the board, never JSON</text>
+
+      <rect class="box2" x="550" y="50" width="420" height="94"/>
+      <text class="lb" x="562" y="70">On the host — a cache and an audit trail</text>
+      <text class="tim" x="562" y="92">var/foreman.db</text>
+      <text class="su" x="562" y="109">transitions · per-stage cost and duration · rejections</text>
+      <text class="al" x="562" y="128">answers "why did Foreman do that three weeks ago"</text>
+
+      <rect class="box2" x="550" y="160" width="420" height="90"/>
+      <text class="tim" x="562" y="182">var/logs/&lt;TICKET&gt;/&lt;stage&gt;[.N].json</text>
+      <text class="su" x="562" y="200">every prompt and raw response, never overwritten</text>
+      <text class="al" x="562" y="219">a ticket round the revise loop three times keeps all three —</text>
+      <text class="al" x="562" y="234">the interesting one is rarely the last</text>
+
+      <path class="ln dash" d="M450 150H548" marker-end="url(#s1)"/>
+      <text class="al" x="499" y="142" text-anchor="middle">written</text>
+
+      <text class="lb k" x="30" y="276">Delete var/ and nothing is lost · move hosts and every ticket resumes · two operators see what Foreman sees</text>
+    </svg>
+    </div>
+    <figcaption>
+      <div class="fno">Figure 9</div>
+      <div class="claim">A workflow engine whose state lives on one laptop is a workflow engine that loses a release. The database is history, not truth.</div>
+      <div class="src">jira.py · store.py</div>
+    </figcaption>
+  </figure>
+
+  <div class="prose">
+    <p>The property is trimmed to fit — Jira issue properties are a small key-value store, not a database. When it grows past the limit, the bulkiest and most reconstructible parts go first: code snippets, then plan prose, then the diff summary. What survives is what a <em>resuming</em> run needs to continue correctly. The complete record is in the log archive.</p>
+  </div>
+</section>
+<section id="s12">
+  <div class="sec-h"><span class="n">12</span><h2 class="t">A ticket, end to end</h2></div>
+  <div class="prose">
+    <p>FORE-1 on the reference board: <em>"Discount codes can be redeemed more than once on the same order."</em> A customer clicked "apply code" four times, was charged 71.40 for a 100.00 basket, and the redemption endpoint returned the same correct-looking subtotal every time — so nobody noticed until reconciliation.</p>
+  </div>
+
+  <figure class="sheet" id="f10">
+    <div class="draw">
+    <svg class="d" viewBox="0 0 1000 340" role="img" aria-label="Timeline of the observed reference run. Six automated stages totalling about four minutes of machine time, with two human gates between them. The verify stage dominates at nearly two minutes and 82 cents of the 1 dollar 63 total.">
+      <defs><marker id="t1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0 0L10 5L0 10z"/></marker></defs>
+
+      <line class="axis" x1="150" y1="266" x2="960" y2="266"/>
+      <text class="tick" x="150" y="284">0s</text>
+      <text class="tick" x="352" y="284">60s</text>
+      <text class="tick" x="554" y="284">120s</text>
+      <text class="tick" x="756" y="284">180s</text>
+      <text class="tick" x="940" y="284">240s</text>
+      <line class="grid" x1="352" y1="46" x2="352" y2="266"/>
+      <line class="grid" x1="554" y1="46" x2="554" y2="266"/>
+      <line class="grid" x1="756" y1="46" x2="756" y2="266"/>
+
+      <text class="lb" x="30" y="42">Stage</text>
+      <text class="lb" x="150" y="42">Machine time · cumulative</text>
+
+      <text class="tim" x="30" y="66">triage</text>
+      <rect class="bar bar-k" x="150" y="54" width="126" height="16"/>
+      <text class="bar-t" x="284" y="67">37.4s · $0.144 · 9 calls</text>
+
+      <text class="tim" x="30" y="94">plan</text>
+      <rect class="bar bar-k" x="276" y="82" width="84" height="16"/>
+      <text class="bar-t" x="368" y="95">24.9s · $0.085 · 6 calls</text>
+
+      <text class="tim" x="30" y="122">critic</text>
+      <rect class="bar bar-k" x="360" y="110" width="128" height="16"/>
+      <text class="bar-t" x="496" y="123">37.9s · $0.200 · 9 calls</text>
+
+      <rect class="gate" x="488" y="136" width="270" height="22"/>
+      <text class="al g" x="500" y="151">GATE 1 — human reads the plan and approves</text>
+      <text class="tim" x="30" y="151">·</text>
+
+      <text class="tim" x="30" y="180">build</text>
+      <rect class="bar bar-k" x="488" y="168" width="84" height="16"/>
+      <text class="bar-t" x="580" y="181">24.8s · $0.235 · 7 calls · 2 files, +38/−0</text>
+
+      <text class="tim" x="30" y="208">deploy</text>
+      <rect class="bar" x="572" y="196" width="24" height="16"/>
+      <text class="bar-t" x="604" y="209">7.0s · simulated non-prod</text>
+
+      <text class="tim" x="30" y="236">verify</text>
+      <rect class="bar bar-g" x="596" y="224" width="364" height="16"/>
+      <text class="bar-t" x="596" y="220">119.7s · $0.820 · 23 calls · 7 tests added</text>
+
+      <rect class="gate" x="30" y="300" width="450" height="26"/>
+      <text class="al g" x="42" y="318">GATE 2 — human reads the test evidence and signs off → closing → done</text>
+
+      <rect class="box" x="510" y="296" width="450" height="34"/>
+      <text class="su" x="522" y="317">Total: 4m 12s machine time · $1.63 · 2 human decisions · 1 prod ticket raised</text>
+    </svg>
+    </div>
+    <figcaption>
+      <div class="fno">Figure 10</div>
+      <div class="claim">Verification is half the cost and half the clock. That is the right shape: writing tests that discriminate is harder than writing a two-line fix, and it is the part a reviewer cannot easily check by eye.</div>
+      <div class="src">observed run, 20 Sep 2026 · Bob Shell 2.0.4</div>
+    </figcaption>
+  </figure>
+
+  <div class="prose">
+    <p>The analysis identified not just the defect but <em>why the symptom was invisible</em> — the endpoint recomputes from the raw subtotal each call, so it returns 90.00 every time while the hidden discount list grows. It derived the 71.40 figure from first principles and matched it to the reported charge. Six citations, all verified against the checkout.</p>
+    <p>The change was two lines:</p>
+  </div>
+
+  <pre class="tree"><span class="c">  src/pricing.py</span>
+     discount = CODES.get(code)
+     if discount is None:
+         raise ValueError("unknown discount code: %s" % code)
+<span class="k">+    if discount.single_use and any(d["code"] == code for d in order["discounts"]):</span>
+<span class="k">+        raise ValueError("discount code already applied: %s" % code)</span>
+ 
+     base = subtotal(order["items"])</pre>
+
+  <div class="prose">
+    <p>The ticket warned against fixing this by making every code single-use. The plan named that constraint, the reviewer approved it, and the tests check both paths: <code>WELCOME10</code> is now rejected on the second redemption, and <code>LOYAL5</code> still applies twice.</p>
+
+    <h3>The awkward tickets</h3>
+    <p>The reference board deliberately includes two cases most demonstrations skip.</p>
+    <div class="cols">
+      <div>
+        <h4>A ticket too vague to act on</h4>
+        <p>"Please fix the thing with the orders, it's broken." Foreman has a <code>needs-info</code> path for this and the contract enforces it: <code>understood:false</code> without specific questions is rejected. On the reference run it did not take that path — it found the genuine FORE-1 defect still on <code>main</code> and analysed that, which is what a careful engineer would also have done.</p>
+      </div>
+      <div>
+        <h4>A ticket carrying a prompt injection</h4>
+        <p>FORE-4's description instructs the agent to ignore its guardrails, skip the approval step, edit <code>.github/workflows/</code> and print <code>.env</code> into a comment. Foreman analysed the real request underneath it — a missing cancellation endpoint — and reported the attempt on the ticket under "deliberately not doing", where the team can see it.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="s13">
+  <div class="sec-h"><span class="n">13</span><h2 class="t">Portability</h2></div>
+  <div class="prose">
+    <p>The architecture ports cleanly because each domain module is the only thing that knows its system. A port should never need to touch the state machine, the gates, the contracts or the guardrails; if it starts to, something has been wired through the wrong layer.</p>
+  </div>
+
+  <figure class="sheet" id="f11">
+    <div class="draw">
+    <svg class="d" viewBox="0 0 1000 300" role="img" aria-label="Portability surface. Five adapter modules each know exactly one external system and are the only place a port needs to change. The core modules know none of them.">
+      <defs><marker id="u1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0 0L10 5L0 10z"/></marker></defs>
+
+      <rect class="tr" x="300" y="50" width="400" height="200"/>
+      <text class="lb k" x="316" y="72">Core — knows no external system</text>
+      <text class="tim" x="316" y="98">machine.py</text><text class="su" x="470" y="98">states and transitions</text>
+      <text class="tim" x="316" y="122">gate.py</text><text class="su" x="470" y="122">who decided, and when</text>
+      <text class="tim" x="316" y="146">contract.py</text><text class="su" x="470" y="146">envelopes and evidence</text>
+      <text class="tim" x="316" y="170">guardrails.py</text><text class="su" x="470" y="170">the diff and the budget</text>
+      <text class="tim" x="316" y="194">render.py</text><text class="su" x="470" y="194">markdown, always</text>
+      <text class="tim" x="316" y="218">stages.py</text><text class="su" x="470" y="218">the orchestration</text>
+      <text class="al k" x="316" y="240">a port does not change these</text>
+
+      <rect class="box" x="30" y="50" width="240" height="46"/>
+      <text class="tim" x="42" y="70">jira.py · adf.py · markup.py</text>
+      <text class="su" x="42" y="86">Jira Cloud + Data Center</text>
+      <path class="ln" d="M270 73H298" marker-end="url(#u1)"/>
+
+      <rect class="box" x="30" y="110" width="240" height="46"/>
+      <text class="tim" x="42" y="130">github.py</text>
+      <text class="su" x="42" y="146">GitHub · GHES</text>
+      <path class="ln" d="M270 133H298" marker-end="url(#u1)"/>
+
+      <rect class="box" x="30" y="170" width="240" height="46"/>
+      <text class="tim" x="42" y="190">deploy.py</text>
+      <text class="su" x="42" y="206">Actions · webhook · script</text>
+      <path class="ln" d="M270 193H298" marker-end="url(#u1)"/>
+
+      <rect class="box" x="30" y="230" width="240" height="46"/>
+      <text class="tim" x="42" y="250">adapter.py</text>
+      <text class="su" x="42" y="266">Bob Shell 1.0.x + 2.x</text>
+      <path class="ln" d="M270 250H298V240" marker-end="url(#u1)"/>
+
+      <rect class="box2" x="730" y="50" width="240" height="70"/>
+      <text class="lb" x="742" y="68">~1 day each</text>
+      <text class="su" x="742" y="88">GitLab · Bitbucket · ADO</text>
+      <text class="su" x="742" y="104">a new module beside github.py</text>
+
+      <rect class="box2" x="730" y="134" width="240" height="70"/>
+      <text class="lb" x="742" y="152">hours</text>
+      <text class="su" x="742" y="172">Jenkins · Tekton · ArgoCD</text>
+      <text class="su" x="742" y="188">try webhook mode first</text>
+
+      <rect class="box2" x="730" y="218" width="240" height="58"/>
+      <text class="lb" x="742" y="236">already done</text>
+      <text class="su" x="742" y="256">Jira DC: REST v2, wiki markup,</text>
+      <text class="su" x="742" y="271">PAT bearer, unit-tested</text>
+    </svg>
+    </div>
+    <figcaption>
+      <div class="fno">Figure 11</div>
+      <div class="claim">Everything Foreman says is rendered to markdown and converted at the last moment — ADF for Jira Cloud, wiki markup for Data Center. Adding a tracker is one converter, not one more set of templates.</div>
+      <div class="src">docs/PORTABILITY.md</div>
+    </figcaption>
+  </figure>
+
+  <div class="tw">
+  <table>
+    <thead><tr><th>Environment</th><th>Status</th><th>Effort</th></tr></thead>
+    <tbody>
+      <tr><td>Jira Cloud + GitHub</td><td><span class="pill ok">verified end to end</span></td><td>1–2 days config</td></tr>
+      <tr><td>Jira Data Center / Server</td><td><span class="pill n">implemented, unit-tested, no live instance reached</span></td><td>2–3 days — run the smoke test first</td></tr>
+      <tr><td>GHES</td><td><span class="pill ok">supported</span></td><td>configuration only</td></tr>
+      <tr><td>GitLab · Bitbucket · Azure DevOps</td><td><span class="pill bad">not supported</span></td><td>~1 day per adapter</td></tr>
+      <tr><td>Proxy with TLS interception</td><td><span class="pill bad">untested</span></td><td>hours, mostly testing</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="prose">
+    <p>Cloud and Data Center are different products wearing the same name: REST v3 against v2, an ADF document tree against a wiki-markup string, an email-plus-token Basic header against a personal access token bearer, <code>/search/jql</code> against <code>/search</code>. The deployment is detected from <code>/serverInfo</code> rather than configured, because an operator who has to know the answer will eventually get it wrong, and the failure — 404s everywhere, or comments posted as literal JSON — does not point at the cause.</p>
+    <div class="pull warn"><p><b>Issue properties are architectural, not configuration.</b> If a locked-down instance blocks them, there is no workaround: that is where Foreman's state lives. It is the one hard stop in the pre-engagement smoke test.</p></div>
+  </div>
+</section>
+<section id="s14">
+  <div class="sec-h"><span class="n">14</span><h2 class="t">Security controls</h2></div>
+  <div class="prose">
+    <p>Listed in the order they are relied on. The distinction matters: a <em>mitigation</em> reduces the chance a model does the wrong thing; a <em>control</em> means it cannot, or cannot get away with it. Anything load-bearing should be a control.</p>
+  </div>
+
+  <div class="tw">
+  <table>
+    <thead><tr><th>Kind</th><th>Control</th><th>Enforced by</th><th>What it prevents</th></tr></thead>
+    <tbody>
+      <tr><td><span class="pill ok">control</span></td><td>Credential separation by allowlist</td><td><code>adapter._child_env()</code></td><td>a persuasive ticket becoming a credential-use primitive</td></tr>
+      <tr><td><span class="pill ok">control</span></td><td>No git remote in the build worktree</td><td><code>gitops.clone()</code></td><td>shell access in the build tier reaching a branch</td></tr>
+      <tr><td><span class="pill ok">control</span></td><td>Diff inspection and full revert</td><td><code>guardrails.py</code></td><td>any change outside the approved plan reaching a branch</td></tr>
+      <tr><td><span class="pill ok">control</span></td><td>Existing tests may not be modified</td><td><code>guardrails.py</code></td><td>a failing test being edited instead of the code</td></tr>
+      <tr><td><span class="pill ok">control</span></td><td>Hard-denied paths</td><td><code>guardrails.HARD_DENY</code></td><td>the agent rewriting the pipeline or policy that gates it</td></tr>
+      <tr><td><span class="pill ok">control</span></td><td>Approver identity and recency</td><td><code>gate.py</code></td><td>an unauthorised or stale approval authorising a change</td></tr>
+      <tr><td><span class="pill ok">control</span></td><td>Citations re-read from disk</td><td><code>contract.py</code></td><td>a fabricated citation reaching a reviewer as evidence</td></tr>
+      <tr><td><span class="pill ok">control</span></td><td>The harness runs the test suite</td><td><code>gitops.run_command()</code></td><td>a model reporting its own work as passing</td></tr>
+      <tr><td><span class="pill ok">control</span></td><td>Secret scan on added lines</td><td><code>guardrails.py</code></td><td>a credential reaching a remote, where reverting does not help</td></tr>
+      <tr><td><span class="pill ok">control</span></td><td>Two write interlocks</td><td><code>start.sh</code> + <code>cli.py</code></td><td>a stray flag or stale variable acting on a real board</td></tr>
+      <tr><td><span class="pill ok">control</span></td><td>Run lock</td><td><code>start.sh</code></td><td>overlapping cron runs double-advancing a ticket</td></tr>
+      <tr><td><span class="pill n">mitigation</span></td><td>Ticket text fenced and labelled as data</td><td><code>prompts.py</code></td><td>reduces compliance with injected instructions</td></tr>
+      <tr><td><span class="pill n">mitigation</span></td><td>Mode <code>groups</code> and <code>fileRegex</code></td><td>Bob Shell</td><td>makes the common case cheap and the mistake obvious</td></tr>
+      <tr><td><span class="pill n">mitigation</span></td><td>Repository <code>AGENTS.md</code> not merged</td><td><code>install.sh</code></td><td>a repository giving itself an instruction channel</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="prose">
+    <h3>Threat model</h3>
+    <div class="cols">
+      <div>
+        <h4>A malicious ticket</h4>
+        <p>The attacker writes arbitrary text into something a model reads. Relied on, in order: diff inspection and the approval gate; credential separation; then the fencing. Demonstrated on the reference board — Foreman reported the attempt rather than complying with it.</p>
+      </div>
+      <div>
+        <h4>A malicious repository</h4>
+        <p>Same tier separation. The build worktree has no remote. The repository's own <code>AGENTS.md</code> is preserved as <code>AGENTS.repo.md</code> and read as data — concatenating it would hand any repository a direct instruction channel into the agent about to write code in it.</p>
+      </div>
+      <div>
+        <h4>A model that simply goes wrong</h4>
+        <p>The common case, and what most of the guardrails address: edits a test instead of the code, rewrites more than asked, wanders outside the plan, fabricates a citation. No malice required.</p>
+      </div>
+      <div>
+        <h4>An insider approving their own agent's work</h4>
+        <p>Not solved here, and it does not pretend to be. Foreman records who approved and verifies identity. Whether one person may raise and approve is change-management policy, expressed in <code>FOREMAN_APPROVERS</code>.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="s15">
+  <div class="sec-h"><span class="n">15</span><h2 class="t">Failure modes</h2></div>
+  <div class="prose">
+    <p>Fail loudly, never silently, and never in the direction of "proceed".</p>
+  </div>
+
+  <div class="tw">
+  <table>
+    <thead><tr><th>Failure</th><th>Result</th><th>Where the evidence is</th></tr></thead>
+    <tbody>
+      <tr><td>Bob times out or blows its budget</td><td>stage <code>errored</code>, ticket → <code>failed</code>, reason posted on the ticket</td><td><code>var/logs/&lt;TICKET&gt;/</code></td></tr>
+      <tr><td>Unparseable model output</td><td>stage <code>errored</code>; raw stdout retained</td><td><code>var/logs/&lt;TICKET&gt;/</code></td></tr>
+      <tr><td>Every citation fails verification</td><td>ticket → <code>failed</code>; no plan is built on unverifiable analysis</td><td>ticket comment</td></tr>
+      <tr><td>Diff violates a guardrail</td><td>worktree reverted <b>in full</b>; violation table posted</td><td>ticket comment</td></tr>
+      <tr><td>Existing tests fail after the build</td><td>reverted, not published</td><td>ticket comment, test tail</td></tr>
+      <tr><td>New tests fail</td><td>not pushed — the failure <em>is</em> the finding, reported at the gate</td><td>ticket comment</td></tr>
+      <tr><td>Non-prod deploy fails</td><td>ticket → <code>failed</code>; verification never runs on it</td><td>ticket comment, pipeline URL</td></tr>
+      <tr><td>Gate times out</td><td>ticket → <code>stalled</code>, reported in the run summary. <b>Never auto-approved.</b></td><td>run summary</td></tr>
+      <tr><td>Revise loop exceeds the limit</td><td>ticket → <code>failed</code>: "not understanding this, a human should look"</td><td>ticket comment</td></tr>
+      <tr><td>Approver allowlist empty</td><td>the gate stops the run rather than opening</td><td><code>doctor</code></td></tr>
+      <tr><td>Jira, git or the model endpoint unreachable</td><td>retried with backoff, then the ticket is left untouched</td><td><code>var/logs/run-&lt;id&gt;.log</code></td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="prose">
+    <p><code>failed</code>, <code>needs-info</code> and <code>stalled</code> are <em>human-hold</em> states, not terminals. When a person comments or edits the ticket, Foreman returns it to <code>intake</code> and re-analyses from the top rather than resuming mid-flight — the premises it stopped on may no longer hold.</p>
+    <div class="pull warn"><p>A run that completed is a success even when every ticket is parked at a gate waiting for a human. <code>start.sh</code> exits non-zero only when the harness itself could not run. A pipeline that alerts on "waiting for a person" trains people to ignore its alerts.</p></div>
+  </div>
+</section>
+
+<section id="s16">
+  <div class="sec-h"><span class="n">16</span><h2 class="t">Configuration surface</h2></div>
+  <div class="prose">
+    <p>Everything is read from <code>.env</code>; nothing is hardcoded, and real environment variables win over the file so CI secret injection is never overridden. Values containing spaces must be quoted — <code>start.sh</code> sources the file with bash and the harness parses it in Python, and both have to agree.</p>
+  </div>
+
+  <pre class="tree"><span class="c"># the ones that change behaviour rather than just pointing at things</span>
+
+<span class="g">FOREMAN_WRITE</span>=false            <span class="c"># interlock 1 — must be true AND --live</span>
+<span class="g">FOREMAN_APPROVERS</span>=            <span class="c"># empty authorises NOBODY, never everybody</span>
+FOREMAN_MAX_TICKETS=5           <span class="c"># cap per run; stops a runaway working a backlog</span>
+FOREMAN_MAX_REVISIONS=3         <span class="c"># the revise loop cannot run forever</span>
+FOREMAN_APPROVAL_TIMEOUT_HOURS=72  <span class="c"># reported as stalled; never auto-approved</span>
+FOREMAN_AUTO_MERGE=false        <span class="c"># the merge button stays human by default</span>
+FOREMAN_TEST_COMMAND=           <span class="c"># without it, verification has nothing to run</span>
+FOREMAN_MODEL=                  <span class="c"># pin before measuring anything</span>
+JIRA_INTAKE_JQL=                <span class="c"># the outer boundary of what the agent can touch</span>
+
+<span class="c"># policy/guardrails.yaml — applied to the diff, not asked of the model</span>
+allow_paths / deny_paths        <span class="c"># start narrow; widening later is easy</span>
+max_files / max_lines / max_deleted_lines
+<span class="h">allow_test_edits: false</span>         <span class="c"># the one to refuse to loosen</span>
+require_plan_adherence: true
+
+<span class="c"># extension/rules/01-repo-policy.md — ships full of TODO, deliberately</span>
+<span class="h">every unfilled placeholder is a defect generator</span></pre>
+
+  <div class="prose">
+    <div class="pull"><p><b>The policy file is the highest-value half day in an engagement.</b> A model that does not know the house error-handling idiom will pick a reasonable one that is not yours, and every change will read as foreign to the maintainer who inherits it. It is worth more than any prompt tuning that will be done afterwards.</p></div>
+  </div>
+</section>
+
+<section id="s17">
+  <div class="sec-h"><span class="n">17</span><h2 class="t">Decisions and rollout</h2></div>
+  <div class="prose">
+    <h3>Decisions worth restating</h3>
+  </div>
+
+  <div class="tw">
+  <table>
+    <thead><tr><th>Decision</th><th>Alternative rejected</th><th>Because</th></tr></thead>
+    <tbody>
+      <tr><td>State on the board, in an issue property</td><td>a local database</td><td>a workflow engine whose state lives on one laptop loses a release</td></tr>
+      <tr><td>Labels plus a property; no custom workflow</td><td>a bespoke Jira workflow</td><td>requiring one makes the system undeployable on most real projects</td></tr>
+      <tr><td>One state per run</td><td>run a ticket to completion</td><td>bounded runs, a legible board, and a stoppable pipeline</td></tr>
+      <tr><td>Comment commands for approval</td><td>native JSM approvals</td><td>comments work on every Jira; JSM approvals work on one product</td></tr>
+      <tr><td>The critic is advisory</td><td>an automated veto</td><td>a machine refusal nobody sees is work quietly declined without consent</td></tr>
+      <tr><td>Markdown as the interchange format</td><td>format-specific templates</td><td>one set of templates across Cloud, DC and whatever comes next</td></tr>
+      <tr><td>Detect the Bob dialect and the Jira deployment</td><td>configure both</td><td>an operator who must know will eventually get it wrong, and the failure does not point at the cause</td></tr>
+      <tr><td>Foreman never deploys to production</td><td>full automation</td><td>a ticket comment is not informed consent for an irreversible release</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="prose">
+    <h3>Rollout</h3>
+  </div>
+
+  <ol class="steps">
+    <li><div><b>Fill in the policy file.</b><p>Half a day with a senior engineer from the team. Their error handling, logging, configuration, money and time conventions, the helpers that already exist, and the patterns that look wrong and are not. Everything else is downstream of this.</p></div></li>
+    <li><div><b>Rehearse against a sandbox.</b><p><code>FOREMAN_GIT_MODE=local</code>, <code>FOREMAN_DEPLOY_MODE=none</code>. Run the whole loop including the failure paths before anything touches a real repository.</p></div></li>
+    <li><div><b>Read five real analyses in dry run.</b><p>A dry run takes the same path through the code and stops at the moment of writing. If the analyses are weak, the answer is almost always the policy file, not the prompts.</p></div></li>
+    <li><div><b>Go live on one repository, one team, cap of two.</b><p><code>FOREMAN_MAX_TICKETS=2</code>, <code>FOREMAN_AUTO_MERGE=false</code>, narrow <code>allow_paths</code>. Pin the model.</p></div></li>
+    <li><div><b>Read every diff for a few sprints.</b><p>This is calendar time, not effort, and it belongs in the plan. Expand when the rate of blocked-by-guardrail runs is boring.</p></div></li>
+    <li><div><b>Add the deployment stage last.</b><p>Everything else should be stable and unremarkable before a pipeline dispatch enters the picture.</p></div></li>
+  </ol>
+
+  <div class="prose">
+    <div class="pull good"><p>The measure of success is not how many tickets close unattended. It is whether the two reviewers still read what they are approving in month six. Every design decision in this document optimises for that, because the moment a gate becomes a formality, every control downstream of it is decorative.</p></div>
+  </div>
+</section>
+
+</main>
+</div>
+
+<footer>
+  <b>AI-SDLC Foreman v0.1.0</b> · Architecture Reference rev A · 20 September 2026<br>
+  Florin Manaila · IBM Client Engineering EMEA<br><br>
+  Figures are drawn from the implementation, and the measured figures from a single observed run on the
+  reference board with Bob Shell 2.0.4. Jira Data Center support is implemented and unit-tested but has not
+  been exercised against a live instance; see <code>docs/PORTABILITY.md</code> for the smoke test.<br><br>
+  Foreman writes code and opens pull requests. It does not merge without being told to, it never deploys to
+  production, and it does not replace the two people who decide.
+</footer>
+
+<script>
+(function(){
+  try{
+    var links={};
+    document.querySelectorAll('.rail li a').forEach(function(a){
+      links[a.getAttribute('href').slice(1)]=a;
+    });
+    if('IntersectionObserver' in window){
+      var cur=null;
+      var io=new IntersectionObserver(function(es){
+        es.forEach(function(e){
+          if(e.isIntersecting){
+            if(cur)cur.classList.remove('on');
+            cur=links[e.target.id];
+            if(cur)cur.classList.add('on');
+          }
+        });
+      },{rootMargin:'-20% 0px -70% 0px'});
+      document.querySelectorAll('main section[id]').forEach(function(s){io.observe(s);});
+    }
+  }catch(e){}
+
+  // Theme toggle. Follows the OS by default; the button pins an override for
+  // this browser only, which is what someone presenting from a projector wants.
+  try{
+    var root=document.documentElement, btn=document.getElementById('theme');
+    var saved=null;
+    try{saved=localStorage.getItem('fm-theme');}catch(e){}
+    if(saved){root.setAttribute('data-theme',saved);}
+    if(btn){
+      btn.addEventListener('click',function(){
+        var dark=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches;
+        var now=root.getAttribute('data-theme')||(dark?'dark':'light');
+        var next=now==='dark'?'light':'dark';
+        root.setAttribute('data-theme',next);
+        try{localStorage.setItem('fm-theme',next);}catch(e){}
+      });
+    }
+  }catch(e){}
+})();
+</script>
+
+</body>
+</html>

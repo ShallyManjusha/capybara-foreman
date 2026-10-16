@@ -1,0 +1,98 @@
+# Non-prod deployment, dispatched by AI-SDLC Foreman.
+#
+# Copy into .github/workflows/ of the repository Foreman works on, and set
+# FOREMAN_DEPLOY_MODE=github-actions.
+#
+# Foreman dispatches this against FOREMAN_DEPLOY_REF, then polls the run to a
+# conclusion and reports it on the ticket. The four inputs below are what it
+# sends; a workflow missing any of them will reject the dispatch with a 422
+# that does not say which input was wrong.
+#
+# Note that Foreman itself can never edit this file. `.github/workflows/` is a
+# hard-denied path: an agent that can rewrite the pipeline that gates it does
+# not have a gate.
+
+name: Deploy to non-prod
+
+on:
+  workflow_dispatch:
+    inputs:
+      ticket:
+        description: "Jira ticket key"
+        required: true
+      branch:
+        description: "Branch to deploy"
+        required: true
+      sha:
+        description: "Commit sha"
+        required: false
+      environment:
+        description: "Target environment"
+        required: false
+        default: nonprod
+
+concurrency:
+  # One deployment per ticket. A second dispatch while the first is in flight
+  # would leave Foreman polling a run that is about to be superseded.
+  group: foreman-deploy-${{ inputs.ticket }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      deployments: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
+          fetch-depth: 1
+
+      - name: Confirm the commit is the one that was approved
+        if: inputs.sha != ''
+        run: |
+          # Foreman reports the deployment against the sha it built. If the
+          # branch has moved since, something else pushed to Foreman's branch
+          # namespace and the ticket's evidence would describe a different
+          # tree than the one running in non-prod.
+          actual="$(git rev-parse HEAD)"
+          if [ "${actual#${{ inputs.sha }}}" = "$actual" ]; then
+            echo "::error::branch ${{ inputs.branch }} is at $actual, expected ${{ inputs.sha }}"
+            exit 1
+          fi
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Test
+        run: |
+          python -m pip install --quiet --upgrade pip
+          [ -f requirements.txt ] && pip install --quiet -r requirements.txt || true
+          python -m pytest -q
+
+      - name: Deploy
+        run: |
+          echo "Deploying ${{ inputs.ticket }} (${{ inputs.branch }}) to ${{ inputs.environment }}"
+          # TODO: your actual deployment. kubectl, helm, a script, whatever
+          # already deploys this service. Foreman does not need to know.
+
+      - name: Smoke test
+        run: |
+          echo "TODO: hit the health endpoint of the deployed environment"
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### ${{ inputs.ticket }} → ${{ inputs.environment }}"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Branch | \`${{ inputs.branch }}\` |"
+            echo "| Commit | \`${{ inputs.sha }}\` |"
+            echo "| Result | ${{ job.status }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
